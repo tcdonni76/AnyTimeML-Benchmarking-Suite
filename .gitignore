@@ -1,0 +1,59 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Virtual environment
+env/
+venv/
+ENV/
+.venv/
+.VENV/
+
+# VS Code settings
+.vscode/
+
+
+# Logs and debug files
+*.log
+*.out
+*.err
+
+# Generated files
+*.pkl
+*.joblib
+*.h5
+*.model
+random_forest_model.py
+classifier_fold.py
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Python egg files
+*.egg
+*.egg-info/
+dist/
+build/
+*.manifest
+*.spec
+
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.~undo-tree~
+
+# Cache files
+.cache/
+*.cache
