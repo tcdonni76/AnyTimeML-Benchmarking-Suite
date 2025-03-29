@@ -4,3 +4,4 @@ matplotlib
 fogml
 numpy
 pandas
+tensorflow

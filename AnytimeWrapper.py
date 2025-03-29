@@ -10,6 +10,11 @@ from RFCPythonGenerator import RandomForestPythonGeneratorTime
 import json
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
+import platform
+from datetime import datetime
+from keras.datasets import cifar10
+from sklearn.datasets import load_iris
+
 
 class GeneratedClassifierWrapperTime(BaseEstimator, ClassifierMixin):
     """Wrapper for dynamically generated classifier functions with anytime stopping support."""
@@ -119,10 +124,10 @@ class GeneratedClassifierWrapperTime(BaseEstimator, ClassifierMixin):
             
             # Now calculate max latency after all threads have finished
             max_latencies.append(max(latency))
-        
-        return round(np.median(max_latencies), 2)
+        median_latency = np.median(max_latencies)
+        return round(median_latency, 5)
 
-    def get_stats(self, X, y, model, generator, iters=5):
+    def conduct_test(self, X, y, model, iters=5):
         """
         Args:
             X: Input samples.
@@ -136,37 +141,57 @@ class GeneratedClassifierWrapperTime(BaseEstimator, ClassifierMixin):
         """
         X = np.array(X, dtype=np.float32)
 
+
+        # Train on all the data just to get the max time to train all trees
+        model.fit(X, y)
+
+        # Load in the generator to generate the if-else statements
+        generator = RandomForestPythonGeneratorTime(model)
+        generator.generate("random_forest_model.py")
+
+
+        self.load_classifier("random_forest_model.py")
+        self.load_voter("random_forest_model.py")
+
         time_accuracies = {}
-        max_time = 0.02  # Set a fixed max time for simplicity
+
+        # Train the model to get the maximum time
+        model.fit(X, y)
+        max_time = self.get_full_time(X, iters=5)  # Get the maximum time needed to process all trees for a single sample
         print(f'MAX TIME: {max_time}')
         times = np.linspace(0, max_time, 20)
 
+        all_labels = np.unique(y)
+
         kf = KFold(n_splits=5, shuffle=True, random_state=42)  # 5-fold cross-validation
-        count = 0
+        count = 1
         for time_limit in times:
             print(f"TESTING TIME LIMIT: {time_limit}, {count}/{len(times)}")
             accuracies = []             #
             avg_trees = []              # Store for each fold
             confusion_matrices = []     #
-            for train_index, test_index in kf.split(X, y):  # Pass both X and y to KFold.split()
-                X_train, X_test = X[train_index], X[test_index]
-                y_train, y_test = y[train_index], y[test_index]
+            for i in range(iters): # Iterate through to smooth out inconsistencies from threading
+                print(f"ITERATION: {i+1}/{iters}")
+                for train_index, test_index in kf.split(X, y):  # Pass both X and y to KFold.split()
+                    X_train, X_test = X[train_index], X[test_index]
+                    y_train, y_test = y[train_index], y[test_index]
 
-                # Train the model
-                model.fit(X_train, y_train)
-                generator.generate(f"classifier_fold.py")
+                    # Train the model
+                    model.fit(X_train, y_train)
+                    generator.generate(f"classifier_fold.py")
 
-                # Load the classifier and voter
-                self.load_classifier("classifier_fold.py")
-                self.load_voter("classifier_fold.py")
+                    # Load the classifier and voter
+                    self.load_classifier("classifier_fold.py")
+                    self.load_voter("classifier_fold.py")
 
-                # Predict with a timeout
-                predictions, _ = self.predict_thread(X_test, timeout=time_limit)
-                y_pred = np.array([pred[0] for pred in predictions])
-                accuracies.append(accuracy_score(y_test, y_pred))
-
-                cm = confusion_matrix(y_test, y_pred)
-                confusion_matrices.append(cm.tolist())  # Convert to list for JSON serialization
+                    # Predict with a timeout
+                    predictions, _ = self.predict_thread(X_test, timeout=time_limit)
+                    y_pred = np.array([pred[0] for pred in predictions])
+                    n_trees = np.array([pred[1] for pred in predictions])
+                    avg_trees.append(np.mean(n_trees))
+                    accuracies.append(accuracy_score(y_test, y_pred))
+                    cm = confusion_matrix(y_test, y_pred, labels=all_labels)
+                    confusion_matrices.append(cm.tolist())  # Convert to list for JSON serialization
 
 
             # Calculate mean accuracy, standard deviation, and confidence interval
@@ -183,87 +208,13 @@ class GeneratedClassifierWrapperTime(BaseEstimator, ClassifierMixin):
                 "lower_bound": max(mean_accuracy - conf_interval, 0.0),   # Lower bound of confidence interval
                 "confusion_matrices": confusion_matrices  # Store confusion matrices for all folds
             }
+            print(f"Accuracy: {mean_accuracy:.4f} ± {conf_interval:.4f}")
             count += 1
 
         return time_accuracies
 
+
+
     def fit(self, X, y):
         """Dummy method to comply with sklearn interface."""
         return self
-
-
-from sklearn import datasets
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-from sklearn.datasets import fetch_openml
-
-print("START")
-
-clf = GeneratedClassifierWrapperTime()
-
-
-
-# RUN THE BELOW TO GENERATE THE RESULTS FOR MNIST
-
-
-# # module_filename = f"random_forest_model.py"
-
-# print("LOADING MNIST. . .")
-# mnist = fetch_openml('mnist_784', version=1, parser='auto')
-# X = np.array(mnist["data"].astype('float32') / 255.0)
-# y = np.array(mnist["target"].astype('int'))
-# # Use a subset for speed
-# X, y = X[:2000], y[:2000]
-# print("MNIST LOADED")
-
-# rfc = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
-# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-# rfc.fit(X_train, y_train)
-
-# # Initial model loading so we can get the maximum time needed to process all trees
-# generator = RandomForestPythonGeneratorTime(rfc)
-# generator.generate("random_forest_model.py")
-# clf.load_classifier("random_forest_model.py")
-# clf.load_voter("random_forest_model.py")
-
-# time_acc = clf.get_stats(X, y, rfc, generator, iters=5)
-
-# with open("time_acc.json", "w") as f:
-#     json.dump(time_acc, f, indent=4)
-
-# Load time_acc from the JSON file
-with open("time_acc.json", "r") as f:
-    time_acc = json.load(f)
-
-# Extract data for plotting
-times = list(time_acc.keys())
-times = [float(t) for t in times]  # Convert times to float
-times.sort()
-
-accuracies = [time_acc[str(t)]["accuracy"] for t in times]
-conf_intervals = [time_acc[str(t)]["conf. interval"] for t in times]
-# conf_matrices = [time_acc[str(t)]["confusion_matrices"] for t in times]
-upper_bounds = [time_acc[str(t)]["upper_bound"] for t in times]
-lower_bounds = [time_acc[str(t)]["lower_bound"] for t in times]
-
-
-# Plot Quality vs. Time with Confidence Intervals
-plt.figure(figsize=(10, 6))
-plt.plot(times, accuracies, label="Accuracy")
-plt.fill_between(times, lower_bounds, upper_bounds, color='grey', alpha=0.3)
-plt.xlabel("Time (s)")
-plt.ylabel("Accuracy")
-plt.title("Quality vs. Time with Confidence Intervals")
-plt.legend()
-plt.grid()
-plt.show()
-
-# Plot Confusion Matrices for Selected Time Points
-# selected_times = [times[0], times[len(times) // 2], times[-1]]  # First, middle, and last time points
-# for i, t in enumerate(selected_times):
-#     cm = np.array(conf_matrices[times.index(t)])  # Convert to NumPy array
-#     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-#     disp.plot(cmap=plt.cm.Blues)
-#     plt.title(f"Confusion Matrix at Time {t:.2f}s")
-#     plt.show()
