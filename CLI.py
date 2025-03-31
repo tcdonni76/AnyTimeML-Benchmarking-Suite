@@ -10,6 +10,8 @@ from AnytimeWrapper import GeneratedClassifierWrapperTime
 from DataHandler import DataHandler
 from ResultPlotter import ResultPlotter
 import time
+from sklearn.metrics import ConfusionMatrixDisplay
+import numpy as np
 
 class CLI:
     def __init__(self):
@@ -140,7 +142,7 @@ class CLI:
         # Now train the model
         wrapper = GeneratedClassifierWrapperTime()
         results = wrapper.conduct_test(data_X, data_y, model)
-        data = self.data_handler.prepare_data(results, model, dataset)
+        data = self.data_handler.prepare_data(results, model, datasets[dataset_choice - 1])
         self.data_handler.save_data(data)
         print("Model trained successfully.")
         time.sleep(3)
@@ -211,7 +213,6 @@ class CLI:
         elif plot_choice == 2:
             self.plotter.plot_confusion_matrices(results, selected_run['dataset'])
 
-
     def plot_quality_map(self, time_acc, model):
         """Plot the quality map (accuracy vs. time)."""
         # Extract data for plotting
@@ -233,30 +234,6 @@ class CLI:
         plt.grid()
         plt.show()
 
-    def plot_confusion_matrices(self, time_acc, model):
-        """Plot confusion matrices for selected time points."""
-        from sklearn.metrics import ConfusionMatrixDisplay
-        import numpy as np
-
-        # Extract confusion matrices
-        times = list(map(float, time_acc.keys()))
-        times.sort()
-
-        # Select specific time points (e.g., first, middle, last)
-        selected_times = [times[0], times[len(times) // 2], times[-1]]
-        for t in selected_times:
-            confusion_matrices = time_acc[str(t)]["confusion_matrices"]
-            if not confusion_matrices:
-                print(f"No confusion matrix available for time {t:.2f}s.")
-                continue
-
-            # Use the first fold's confusion matrix for simplicity
-            cm = np.array(confusion_matrices[0])
-            disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-            disp.plot(cmap=plt.cm.Blues)
-            plt.title(f"Confusion Matrix at Time {t:.2f}s\nModel: {model['model_details']['model_type']} (Dataset: {model['dataset']})")
-            plt.show()
-
     def main_menu(self):
         """Main CLI menu."""
         while True:
@@ -275,15 +252,12 @@ class CLI:
             if choice == 1:
                 self.load_new_model()
                 time.sleep(1)
-                self.main_menu()
             elif choice == 2:
                 self.display_charts()
                 time.sleep(1)
-                self.main_menu()
             elif choice == 3:
                 self.data_handler.list_models()
                 time.sleep(1)
-                self.main_menu()
             elif choice == 4:
                 print("Exiting...")
                 break

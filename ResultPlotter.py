@@ -40,16 +40,20 @@ class ResultPlotter:
         Plot confusion matrices for selected time points.
 
         Args:
-            selected_times (list): List of time points to plot confusion matrices for. If None, defaults to the first, middle, and last time points.
+            results (dict): Dictionary containing results, including confusion matrices.
+            dataset (str): Name of the dataset.
         """
+        from sklearn.metrics import ConfusionMatrixDisplay
+        import numpy as np
+        import matplotlib.pyplot as plt
 
-        conf_matrices = [results[str(t)]["confusion_matrices"] for t in results.keys()]
+        # Extract confusion matrices
         times = sorted([float(t) for t in results.keys()])
         selected_times = [times[len(times) // 4], times[len(times) // 2], times[3 * len(times) // 4], times[-1]]
-        
         time_breaks = [25, 50, 75, 100]
 
-        fig, axes = plt.subplots(1, len(selected_times), figsize=(20, 5))
+        # Create subplots with a large figure size
+        fig, axes = plt.subplots(1, len(selected_times), figsize=(40, 10))
         fig.suptitle("Confusion Matrices at Selected Time Points for " + dataset)
 
         max_rows = 0
@@ -65,7 +69,7 @@ class ResultPlotter:
             if not confusion_matrices:
                 print(f"No confusion matrix available for time {t:.2f}s.")
                 continue
-            
+
             # Pad all matrices to the largest size
             padded_matrices = []
             for cm in confusion_matrices:
@@ -74,18 +78,25 @@ class ResultPlotter:
                 padded_matrices.append(padded_matrix)
 
             # Combine the padded matrices (e.g., sum them)
-            combined_matrix = np.sum(padded_matrices, axis=0)
+            combined_matrix = np.sum(padded_matrices, axis=0).astype(int)
 
             # Plot the combined matrix
             disp = ConfusionMatrixDisplay(confusion_matrix=combined_matrix)
             disp.plot(ax=axes[count], cmap=plt.cm.Blues, colorbar=False)
 
-            
-
             # Add a title to each subplot
             axes[count].set_title(f"Time: {time_breaks[count]}%", fontsize=12)
-        plt.show()
 
+            # Show X-axis label and ticks only for the first subplot
+            if count == 0:
+                axes[count].set_ylabel("True Labels", fontsize=12)
+            else:
+                axes[count].set_ylabel('')  # Remove X-axis label
+                axes[count].set_yticks([])  # Remove X-axis ticks
+
+        plt.subplots_adjust(wspace=0.4)  # Increase horizontal space between subplots
+        plt.tight_layout(rect=[0, 0, 1, 0.95])  # Leave space for the overall title
+        plt.show()
 
     def plot_all(self):
         """

@@ -64,7 +64,8 @@ class GeneratedClassifierWrapperTime(BaseEstimator, ClassifierMixin):
         # If we want to record stop times, create a list of dictionaries.
         threads = []
         
-        def wrapper(idx, sample, deadline, predictions, delays):
+        def wrapper(idx, sample, predictions, delays):
+            deadline = time.time() + timeout
             # Call classifier_fn with the sample, results list, deadline, and the interrupt flag.
             self.classifier_fn(sample, results[idx], deadline, self.flag)
             np.append(predictions, self.voter_fn(results[idx])[0])
@@ -75,7 +76,7 @@ class GeneratedClassifierWrapperTime(BaseEstimator, ClassifierMixin):
         delays = []
         for idx, sample in enumerate(X):
             deadlines.append(time.time() + timeout)
-            t = threading.Thread(target=wrapper, args=(idx, sample, deadlines[idx], predictions, delays))
+            t = threading.Thread(target=wrapper, args=(idx, sample, predictions, delays))
             threads.append(t)
             t.start()
         
@@ -95,12 +96,14 @@ class GeneratedClassifierWrapperTime(BaseEstimator, ClassifierMixin):
         
         Returns:
         """
+        print("Reached full time")
         samples = np.array(samples, dtype=np.float32)  # Ensure correct data type
         num_samples = len(samples)
         results = [[] for _ in range(num_samples)]  # Each sample’s partial tree results
         threads = []
         
-        def full_run(idx, sample, predictions, latency, now):
+        def full_run(idx, sample, predictions, latency):
+            now = time.time()
             # Call classifier_fn with the sample, results list, deadline, and the interrupt flag.
             self.classifier_fn(sample, results[idx], np.inf, self.flag)
             np.append(predictions, self.voter_fn(results[idx]))
@@ -110,11 +113,11 @@ class GeneratedClassifierWrapperTime(BaseEstimator, ClassifierMixin):
         max_latencies = []
         
         for i in range(iters):
+            print("REACHED ITER ", i+1)
             latency = []
             threads = []  # Reset threads for each iteration
             for idx, sample in enumerate(samples):
-                now = time.time()
-                t = threading.Thread(target=full_run, args=(idx, sample, predictions, latency, now))
+                t = threading.Thread(target=full_run, args=(idx, sample, predictions, latency))
                 threads.append(t)
                 t.start()
             
@@ -156,7 +159,6 @@ class GeneratedClassifierWrapperTime(BaseEstimator, ClassifierMixin):
         time_accuracies = {}
 
         # Train the model to get the maximum time
-        model.fit(X, y)
         max_time = self.get_full_time(X, iters=5)  # Get the maximum time needed to process all trees for a single sample
         print(f'MAX TIME: {max_time}')
         times = np.linspace(0, max_time, 20)
@@ -212,8 +214,6 @@ class GeneratedClassifierWrapperTime(BaseEstimator, ClassifierMixin):
             count += 1
 
         return time_accuracies
-
-
 
     def fit(self, X, y):
         """Dummy method to comply with sklearn interface."""

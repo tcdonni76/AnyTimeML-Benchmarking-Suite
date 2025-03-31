@@ -4,6 +4,9 @@ from sklearn.datasets import fetch_openml
 from datetime import datetime
 import platform
 from sklearn.datasets import load_iris
+import numpy as np
+
+np.set_printoptions(suppress=True)
 
 class DataHandler:
     def __init__(self, time_acc_path='time_acc.json'):
@@ -45,8 +48,10 @@ class DataHandler:
         """Load the MNIST dataset."""
         print("Loading MNIST dataset...")
         mnist = fetch_openml('mnist_784', version=1, parser='auto')
-        X = mnist["data"].astype('float32') / 255.0
-        y = mnist["target"].astype('int')
+        X = np.array(mnist["data"].astype('float32') / 255.0)
+        y = np.array(mnist["target"].astype('int'))
+
+        X, y = self.shuffle_and_subset(X, y, 2000)  # Shuffle and take a subset of 2000 samples for speed
         print("MNIST dataset loaded.")
         return X, y
 
@@ -125,7 +130,6 @@ class DataHandler:
         with open("time_acc.json", "w") as f:
             json.dump(existing_data, f, indent=4)
 
-    # Extract device details
     def get_device_details(self):
         return {
             "os": platform.system(),
@@ -135,7 +139,6 @@ class DataHandler:
             "node": platform.node()  # Hostname of the device
         }
 
-    # Extract model details dynamically
     def get_model_details(self, model):
         model_details = {
             "model_type": type(model).__name__  # Get the class name of the model
