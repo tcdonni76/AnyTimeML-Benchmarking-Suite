@@ -150,6 +150,9 @@ class DataHandler:
             model_details["parameters"] = "Parameters not available"
         return model_details
 
+    def get_model_name(self, model):
+        return type(model).__name__
+
     def prepare_data(self, results, model, dataset_name):
         # Include model and device details
         model_details = self.get_model_details(model)
@@ -166,7 +169,6 @@ class DataHandler:
         }
         return data_to_save
 
-    # Shuffle and take a subset
     def shuffle_and_subset(self, X, y, subset_size):
         """
         Shuffle the dataset and take a subset.
@@ -195,5 +197,3 @@ class DataHandler:
         y_subset = y_shuffled[:subset_size]
 
         return X_subset, y_subset
-
-handler = DataHandler()

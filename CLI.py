@@ -1,17 +1,13 @@
 import os
 import json
-from datetime import datetime
-from sklearn.datasets import fetch_openml, load_iris
+from sklearn.datasets import load_iris
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
-from RFCPythonGenerator import RandomForestPythonGeneratorTime
-from AnytimeWrapper import GeneratedClassifierWrapperTime
+from BenchmarkingSuite.AnytimeWrapper import AnytimeBenchmarkTester
 from DataHandler import DataHandler
 from ResultPlotter import ResultPlotter
 import time
-from sklearn.metrics import ConfusionMatrixDisplay
-import numpy as np
+
 
 class CLI:
     def __init__(self):
@@ -140,8 +136,8 @@ class CLI:
             self.load_new_model()
 
         # Now train the model
-        wrapper = GeneratedClassifierWrapperTime()
-        results = wrapper.conduct_test(data_X, data_y, model)
+        wrapper = AnytimeBenchmarkTester()
+        results = wrapper.conduct_test(data_X, data_y, model, self.data_handler.get_model_name(model), datasets[dataset_choice - 1])
         data = self.data_handler.prepare_data(results, model, datasets[dataset_choice - 1])
         self.data_handler.save_data(data)
         print("Model trained successfully.")
