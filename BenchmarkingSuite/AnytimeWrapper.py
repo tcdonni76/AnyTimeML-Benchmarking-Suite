@@ -163,11 +163,12 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
             accuracies = []             #
             avg_trees = []              # 
             confusion_matrices = []     # 
-            f1_scores = []              # Store metrics for
-            precision_scores = []       # each fold
+            f1_scores = []              # 
+            precision_scores = []       # Store metrics for each iteration of each fold
             recall_scores = []          #
             all_y_true = []             #
             all_y_pred_proba = []       #
+            max_delays = []                 #
 
             for i in range(iters): # Iterate through to smooth out inconsistencies from threading
                 print(f"ITERATION: {i+1}/{iters}")
@@ -187,6 +188,10 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
                     # Collect the accuracy for this iteration of the fold
                     y_pred = np.array([pred[0] for pred in predictions])
                     accuracies.append(accuracy_score(y_test, y_pred))
+
+                    delays = np.array([pred[1] for pred in predictions])
+                    # Calculate the maximum delay for this iteration
+                    max_delay = np.max(delays)
                     
                     # Calculate the average number of trees processed per sample
                     n_trees = np.array([pred[1] for pred in predictions])
@@ -209,6 +214,7 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
             mean_f1 = np.mean(f1_scores)
             mean_precision = np.mean(precision_scores)
             mean_recall = np.mean(recall_scores)
+            mean_max_delay = np.mean(max_delays)
 
             # Construct the dictionary to pass to the JSON results file
             time_accuracies[time_limit] = {
@@ -221,7 +227,8 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
                 "confusion_matrices": confusion_matrices,  # Store confusion matrices for all folds
                 "f1": mean_f1, # Average F1 score across the fold
                 "precision": mean_precision, # Average precision across the fold
-                "recall": mean_recall # Average recall across the fold
+                "recall": mean_recall, # Average recall across the fold
+                "max_delay": mean_max_delay, # Store the average max delay across the fold
             }
             print(f"Accuracy: {mean_accuracy:.4f} ± {conf_interval:.4f}")
             count += 1
