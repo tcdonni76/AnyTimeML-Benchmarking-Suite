@@ -9,40 +9,28 @@ import numpy as np
 np.set_printoptions(suppress=True)
 
 class DataHandler:
-    def __init__(self, time_acc_path='time_acc.json'):
+    def __init__(self, time_acc_path='BenchmarkingSuite/time_acc.json', dataset_path='BenchmarkingSuite/datasets.json', model_path='BenchmarkingSuite/models.json'):
         self.file_path = time_acc_path
-
-        self.data = self.load_data()
-        datasets = []
-        for experiment in self.data:
-            if 'dataset' in experiment and experiment['dataset'] not in datasets:
-                datasets.append(experiment['dataset'])
+        self.model_path = model_path
+        self.models = [] # Loaded in later
+        self.data = [] # Loaded in later
+        self.dataset_path = dataset_path
+        self.datasets = self.retrieve_datasets()
 
     def load_dataset(self, dataset_choice):   
         if dataset_choice == "MNIST":
             return self.load_mnist()
         elif dataset_choice == "Iris":
             return self.load_iris()
+        elif dataset_choice == "CIFAR-2":
+            return self.load_cifar2()
         else:
             return None, None
 
     def retrieve_datasets(self):
-        data = self.load_data()
-
-        datasets = []
-        for experiment in data:
-            if 'dataset' in experiment and experiment['dataset'] not in datasets:
-                datasets.append(experiment['dataset'])
+        with open(self.dataset_path, 'r') as file:
+            datasets = json.load(file)
         return datasets
-
-    def retrieve_models(self):
-        data = self.load_data()
-
-        models = []
-        for experiment in data:
-            if 'model_details' in experiment and experiment['model_details'] not in models:
-                models.append(experiment['model_details'])
-        return models
 
     def load_mnist(self):
         """Load the MNIST dataset."""
@@ -97,19 +85,19 @@ class DataHandler:
         print(f"CIFAR-2 dataset created with {len(X)} samples.")
         return X, y
 
-    def load_data(self):
+    def load(self, path):
         try:
-            with open(self.file_path, 'r') as file:
+            with open(path, 'r') as file:
                 return json.load(file)
         except FileNotFoundError:
             return {}
         except json.JSONDecodeError:
             return {}
 
-    def save_data(self, data):
-        if os.path.exists(self.file_path):
+    def save_data(self, data, path):
+        if os.path.exists(path):
             # Load existing data
-            with open(self.file_path, "r") as f:
+            with open(path, "r") as f:
                 try:
                     existing_data = json.load(f)
                     # Ensure existing_data is a list
@@ -117,7 +105,7 @@ class DataHandler:
                         existing_data = [existing_data]
                 except json.JSONDecodeError:
                     # If the file is empty or invalid, initialize as an empty list
-                    print(f"Warning: {self.file_path} is empty or invalid. Initializing a new file.")
+                    print(f"Warning: {path} is empty or invalid. Initializing a new file.")
                     existing_data = []
         else:
             # Initialize an empty list if the file doesn't exist
@@ -127,7 +115,7 @@ class DataHandler:
         existing_data.append(data)
 
         # Save the updated data back to the JSON file
-        with open("time_acc.json", "w") as f:
+        with open(path, "w") as f:
             json.dump(existing_data, f, indent=4)
 
     def get_device_details(self):
@@ -145,17 +133,16 @@ class DataHandler:
         }
         # Try to get model parameters if the model supports `get_params()`
         try:
-            model_details["parameters"] = model.get_params()
+            model_details["hyperparameters"] = model.get_params()
         except AttributeError:
-            model_details["parameters"] = "Parameters not available"
+            model_details["hyperparameters"] = "Parameters not available"
         return model_details
 
     def get_model_name(self, model):
         return type(model).__name__
 
-    def prepare_data(self, results, model, dataset_name):
+    def prepare_data(self, results, model_name, dataset_name):
         # Include model and device details
-        model_details = self.get_model_details(model)
         device_details = self.get_device_details()
 
         # Prepare the data to save
@@ -163,7 +150,7 @@ class DataHandler:
         data_to_save = {
             "timestamp": timestamp,
             "dataset": dataset_name,
-            "model_details": model_details,
+            "model": model_name,
             "device_details": device_details,
             "results": results
         }
@@ -197,3 +184,19 @@ class DataHandler:
         y_subset = y_shuffled[:subset_size]
 
         return X_subset, y_subset
+
+    def add_new_model(self, model):
+        """
+        Add a new model to the models list. This method is a placeholder and should be implemented as needed.
+        """
+        existing_model_names = [model["model_name"] for model in self.models]
+        base_name = self.get_model_name(model)
+        count = sum(1 for name in existing_model_names if name.startswith(base_name))
+        model_name = f"{base_name}_Model_{count + 1}"
+        model_details = self.get_model_details(model)
+        model_data = {
+            "model_name": model_name,
+        }
+        model_data.update(model_details)
+        self.save_data(model_data, self.model_path)
+        return model_name

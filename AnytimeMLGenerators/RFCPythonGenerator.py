@@ -4,9 +4,10 @@ from fogml.generators.base_generator import BaseGenerator
 import numpy as np
 
 class RFPyAnytimeGenerator(BaseGenerator):
-    def __init__(self, clf):
+    def __init__(self, clf, dataset):
         self.clf = clf
         self.indent_str = '    '
+        self.dataset = dataset
         self.if_indent_str = self.indent_str # Preserve indent of if statement
 
     def generate_statements(self, tree, depth=1):
@@ -25,9 +26,33 @@ class RFPyAnytimeGenerator(BaseGenerator):
                 return indent + f'results.append({class_label})\n'
         return recurse(0, 1)
 
-    def generate(self, X, y, fname='random_forest_model.py', func_name="classifier"):
+    def generate_metadata(self, fold_number):
+        """
+        Generate metadata for the generated Python file.
+
+        Args:
+            fold_number (int): The fold number from K-Fold cross-validation.
+
+        Returns:
+            str: Metadata as a formatted string.
+        """
+        # Extract hyperparameters from the RandomForestClassifier
+        hyperparameters = self.clf.get_params()
+        # Format the metadata
+        metadata = '"""\n\n***** Metadata ******\n'
+        metadata += f"Dataset: {self.dataset}\n"
+        metadata += f"Fold: {fold_number} of K-Fold cross validaiton\n"
+        metadata += "Hyperparameters:\n"
+        for key, value in hyperparameters.items():
+            metadata += f"     {key}: {value}\n"
+        metadata += '\n"""\n'
+        return metadata
+
+
+    def generate(self, X, y, fold_number, fname='random_forest_model.py', func_name="classifier"):
         self.clf.fit(X, y)  # Fit the model provided to the generator with the relevant data
         result = 'import time\n'
+        result += self.generate_metadata(fold_number)
         result += 'def %s(x, results, deadline, interrupt_flag):\n' % func_name
 
 

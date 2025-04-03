@@ -12,7 +12,8 @@ import time
 class CLI:
     def __init__(self):
         """Initialize the CLI class."""
-        self.data_file = "time_acc.json"
+        self.data_file = "BenchmarkingSuite/time_acc.json"
+        self.model_file = "BenchmarkingSuite/models.json"
         self.datasets_file = "datasets.json"
         self.data_handler = DataHandler(self.data_file)
         self.plotter = ResultPlotter()
@@ -64,117 +65,101 @@ class CLI:
         return load_function()
 
     def select_model(self):
+        """Allow the user to select a model from the JSON file."""
+        self.data_handler.models = self.data_handler.load(self.model_file) # Load in latest models
         count = 1
-        print("\nAvailable Models:")
-        for model in self.data_handler.retrieve_models():
-            print(f"{count}. {model}")
-            count += 1
+        self.print_models()
         model_choice = int(input("\nEnter the number of the model to use: "))
         try:
-            model_details = self.data_handler.retrieve_models()[model_choice - 1]
-            if model_details['model_type'] == 'RandomForestClassifier':
-                parameters = model_details['parameters']
+            model = self.data_handler.models[model_choice - 1]
+            if model['model_type'] == 'RandomForestClassifier':
+                parameters = model['hyperparameters']
+                model_name = model['model_name']
                 model = RandomForestClassifier(**parameters)
             else:
                 print("Model type yet not supported.")
         except ValueError or IndexError:
             print("Invalid input. Please enter a number in the range.")
             self.select_model()
-        return model
+        return model_name, model
 
     def load_new_model(self):
-        """Allow the user to select either an existing model or train a new one."""
-        print("\nOptions:")
-        print("1. Train a new model")
-        print("2. Use an existing model")
-
+        print("Options:")
+        print("1. RandomForestClassifier")
+        print("2. Neural Network")
+        
         try:
-            choice = int(input("\nEnter your choice: "))
+            model_choice = int(input("\nEnter your choice: "))
         except ValueError:
             print("Invalid input. Please enter a number.")
             return
-
-        if choice == 1: # If training a new model
-            print("Options:")
-            print("1. RandomForestClassifier")
-            print("2. Neural Network")
         
-            try:
-                model_choice = int(input("\nEnter your choice: "))
-            except ValueError:
-                print("Invalid input. Please enter a number.")
-                return
-            
-            if model_choice == 1: # If user wants a RandomForest
-                # Train a new RandomForestClassifier model
-                print("Enter hyperparameters seperated by commas: (n_estimators, max_depth, min_samples_split, min_samples_leaf)")
-                hyperparameters = input()
-                hyperparameters = hyperparameters.split(',')
-                hyperparameters = [int(x) for x in hyperparameters]
-                n_estimators, max_depth, min_samples_split, min_samples_leaf = hyperparameters
+        if model_choice == 1: # If user wants a RandomForest
+            # Train a new RandomForestClassifier model
+            print("Enter hyperparameters seperated by commas: (n_estimators, max_depth, min_samples_split, min_samples_leaf)")
+            hyperparameters = input()
+            hyperparameters = hyperparameters.split(',')
+            hyperparameters = [int(x) for x in hyperparameters]
+            n_estimators, max_depth, min_samples_split, min_samples_leaf = hyperparameters
 
-                model = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf)
-                
-            elif model_choice == 2: # If user wants a neural net
-                print("NEURAL NETWORKS NOT YET IMPLEMENTED") #TODO: Implement neural networks
-                self.main_menu()
+            model = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf)
+            self.data_handler.add_new_model(model)
 
-        elif choice == 2: # If training an existing model
-            model = self.select_model()
+        elif model_choice == 2: # If user wants a neural net
+            print("NEURAL NETWORKS NOT YET IMPLEMENTED") #TODO: Implement neural networks
+
+    def evaluate_model(self):
+        
+        # First choose model
+        model_name, model = self.select_model()
             
         # Now give option of dataset selection
         
         print("Please select a dataset to train")
-        datasets = self.data_handler.retrieve_datasets()
-        for count, dataset in enumerate(datasets):
-            print(f"{count + 1}. {dataset}")
+        for count, dataset in enumerate(self.data_handler.datasets):
+            print(f"{count + 1}. {dataset['dataset']}")
         dataset_choice = int(input("\nEnter the number of the dataset to use: "))
         try:
-            data_X, data_y = self.data_handler.load_dataset(datasets[dataset_choice - 1])
+            data_X, data_y = self.data_handler.load_dataset(self.data_handler.datasets[dataset_choice - 1]['dataset'])
         except IndexError or ValueError:
             print("Invalid input. Please enter a number displayed.")
             self.load_new_model()
 
         # Now train the model
         wrapper = AnytimeBenchmarkTester()
-        results = wrapper.conduct_test(data_X, data_y, model, self.data_handler.get_model_name(model), datasets[dataset_choice - 1])
-        data = self.data_handler.prepare_data(results, model, datasets[dataset_choice - 1])
-        self.data_handler.save_data(data)
+        results = wrapper.conduct_test(data_X, data_y, model, model_name, self.data_handler.datasets[dataset_choice - 1]['dataset'])
+        data = self.data_handler.prepare_data(results, model_name, self.data_handler.datasets[dataset_choice - 1]['dataset'])
+        self.data_handler.save_data(data, self.data_handler.file_path)
         print("Model trained successfully.")
-        time.sleep(3)
-        self.main_menu()
+
+    def print_models(self):
+        """Print all models in the JSON file in presentafble way."""
+
+        print("\nAvailable Models:")
+        for i, model in enumerate(self.data_handler.models, start=1):
+            print(f"{i}. Name: {model['model_name']}")
+            print(f"   Model Type: {model['model_type']}")
+            # Group hyperparameters into chunks of 2 for better readability
+            hyperparameters = list(model['hyperparameters'].items())
+
+            # Calculate the maximum key length for alignment
+            max_key_length = max(len(key)+len(str(val)) for key, val in hyperparameters)
+
+            for j in range(0, len(hyperparameters), 2):
+                chunk = hyperparameters[j:j + 2]
+                formatted_chunk = "   ".join(
+                    [f"{key}:  {value}".ljust(max_key_length + 5) for key, value in chunk]
+                )
+                print(f"       {formatted_chunk}")
 
     def display_charts(self):
         """Display charts for a selected model and dataset."""
-        # Step 1: Load all models from the JSON file
-        if not os.path.exists(self.data_file):
-            print("No models found. Please train a new model first.")
-            return
 
-        with open(self.data_file, "r") as f:
-            try:
-                models = json.load(f)
-                if not isinstance(models, list):
-                    models = [models]
-            except json.JSONDecodeError:
-                print("Error: time_acc.json is invalid.")
-                return
-
-        for r in self.data_handler.data:
-            print(r['model_details'])
-
-        # Step 2: List available models
-        model = self.select_model()
-        print(model.get_params(), '\n\n\n')
+        model_name, model = self.select_model()
         # List out all the runs involving the selected model and with what dataset
         print("\nAvailable Runs:")
         count = 1
-        model_runs = [run for run in self.data_handler.data if run['model_details']['parameters'] == model.get_params()]
-
-        for run in self.data_handler.data:
-            for key, value in run['model_details']['parameters'].items():
-                if value != model.get_params()[key]:
-                    print(key, value, model.get_params()[key])
+        model_runs = [run for run in self.data_handler.data if run['model'] == model_name]
 
         for run in model_runs:
             print(f"{count}. {run['dataset']} (Timestamp: {run['timestamp']})")
@@ -189,25 +174,31 @@ class CLI:
             print("Invalid input. Please enter a number.")
             return
 
-        # Step 3: Select a run to display
         selected_run = model_runs[run_choice - 1]
         results = selected_run['results']
 
         # Step 4: Select the plot
-        print("\nOptions:")
-        print("1. Quality vs. Time")
-        print("2. Confusion Matrices")
+        while True:
+            print("\nOptions:")
+            print("1. Quality vs. Time")
+            print("2. Confusion Matrices")
+            print("3. ROC AUC vs. Time")
+            print("4. Back to Main Menu")
 
-        try:
-            plot_choice = int(input("\nEnter your choice: "))
-        except ValueError:
-            print("Invalid input. Please enter a number.")
-            return
-        
-        if plot_choice == 1:
-            self.plotter.plot_quality_map(results, selected_run['dataset'])
-        elif plot_choice == 2:
-            self.plotter.plot_confusion_matrices(results, selected_run['dataset'])
+            try:
+                plot_choice = int(input("\nEnter your choice: "))
+            except ValueError:
+                print("Invalid input. Please enter a number.")
+                return
+            
+            if plot_choice == 1:
+                self.plotter.func(results, selected_run['dataset'])
+            elif plot_choice == 2:
+                self.plotter.plot_confusion_matrices(results, selected_run['dataset'])
+            elif plot_choice == 3:
+                print("ROC AUC vs. Time not yet implemented") #TODO: Implement ROC AUC vs. Time
+            elif plot_choice == 4:
+                break
 
     def plot_quality_map(self, time_acc, model):
         """Plot the quality map (accuracy vs. time)."""
@@ -233,10 +224,16 @@ class CLI:
     def main_menu(self):
         """Main CLI menu."""
         while True:
+
+            # Update the results data
+            self.data_handler.data = self.data_handler.load(self.data_handler.file_path)
+            self.data_handler.models = self.data_handler.load(self.model_file) # Load in latest models
+            
+
             print("\nOptions:")
-            print("1. Train model on a dataset")
-            print("2. Display charts for an existing model")
-            print("3. List available models")
+            print("1. Add a new model")
+            print("2. Train model on a dataset")
+            print("3. Display charts for an existing model")
             print("4. Exit")
 
             try:
@@ -247,13 +244,10 @@ class CLI:
 
             if choice == 1:
                 self.load_new_model()
-                time.sleep(1)
             elif choice == 2:
-                self.display_charts()
-                time.sleep(1)
+                self.evaluate_model()
             elif choice == 3:
-                self.data_handler.list_models()
-                time.sleep(1)
+                self.display_charts()
             elif choice == 4:
                 print("Exiting...")
                 break
@@ -264,3 +258,9 @@ class CLI:
 if __name__ == "__main__":
     cli = CLI()
     cli.main_menu()
+    # X, y = cli.data_handler.load_iris()
+    # model = RandomForestClassifier(n_estimators=10, max_depth=10, min_samples_split=2, min_samples_leaf=1)
+    # wrapper = AnytimeBenchmarkTester()
+    # results = wrapper.conduct_test(X, y, model, "test", "Iris")
+    # data = cli.data_handler.prepare_data(results, "test", "Iris")
+    # cli.data_handler.save_data(data)

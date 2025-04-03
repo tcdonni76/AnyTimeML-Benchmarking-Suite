@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import ConfusionMatrixDisplay
 
-# np.set_printoptions(suppress=True)
 
 class ResultPlotter:
     def __init__(self):
@@ -13,7 +12,7 @@ class ResultPlotter:
             time_acc (dict): Dictionary containing accuracy, confidence intervals, and confusion matrices.
         """
 
-    def plot_quality_map(self, results, dataset):
+    def plot_accuracy_quality_map(self, results, dataset):
         """
         Plot accuracy vs. time with confidence intervals.
         """
@@ -35,6 +34,51 @@ class ResultPlotter:
         plt.grid()
         plt.show()
 
+    def func(self, results, dataset):
+        """
+        Plot accuracy, F1 score, precision, and recall vs. time with confidence intervals in subplots.
+        """
+
+        metrics = ["acc", "f1", "precision", "recall"]
+        metric_labels = ["Accuracy", "F1 Score", "Precision", "Recall"]
+
+        times = sorted([float(t) for t in results.keys()])
+        norm_times = [t / max(times) * 100 for t in times] 
+
+        fig, axes = plt.subplots(1, len(metrics),figsize=(15, 5))
+        fig.suptitle("Metrics vs. Time for " + dataset)
+
+        for i, metric in enumerate(metrics):
+            values = [results[str(t)][metric] for t in times]
+            upper_bounds = [results[str(t)][f"{metric}_upper_bound"] for t in times]
+            lower_bounds = [results[str(t)][f"{metric}_lower_bound"] for t in times]
+
+            axes[i].plot(norm_times, values, label=f"Mean {metric_labels[i]}", color="blue")
+            axes[i].fill_between(norm_times, lower_bounds, upper_bounds, color="blue", alpha=0.2, label="95% Confidence Interval")
+            axes[i].set_xlabel("% of Maximum Time")
+            axes[i].set_ylabel(metric_labels[i])
+            axes[i].set_title(metric_labels[i])
+            axes[i].legend()
+            axes[i].grid()
+
+        plt.tight_layout(rect=[0, 0, 1, 0.95])  # Leave space for the overall title
+        plt.show()
+
+    def plot_roc_auc(self, results, dataset):
+        """
+        Plot ROC AUC vs. time with confidence intervals.
+
+        Args:
+            results (dict): Dictionary containing results, including ROC AUC values.
+            dataset (str): Name of the dataset.
+        """
+        times = sorted([float(t) for t in results.keys()])
+        roc_auc_values = [results[str(t)]["roc_auc"] for t in times]
+        upper_bounds = [results[str(t)]["roc_auc_upper_bound"] for t in times]
+        lower_bounds = [results[str(t)]["roc_auc_lower_bound"] for t in times]
+
+        norm_times = [t / max(times) * 100 for t in times]
+
     def plot_confusion_matrices(self, results, dataset):
         """
         Plot confusion matrices for selected time points.
@@ -43,9 +87,7 @@ class ResultPlotter:
             results (dict): Dictionary containing results, including confusion matrices.
             dataset (str): Name of the dataset.
         """
-        from sklearn.metrics import ConfusionMatrixDisplay
-        import numpy as np
-        import matplotlib.pyplot as plt
+
 
         # Extract confusion matrices
         times = sorted([float(t) for t in results.keys()])
@@ -56,46 +98,20 @@ class ResultPlotter:
         fig, axes = plt.subplots(1, len(selected_times), figsize=(40, 10))
         fig.suptitle("Confusion Matrices at Selected Time Points for " + dataset)
 
-        max_rows = 0
-        max_cols = 0
-        for t in selected_times:
-            for cm in results[str(t)]["confusion_matrices"]:
-                max_rows = max(max_rows, len(cm))
-                max_cols = max(max_cols, len(cm[0]))
-
         # Plot confusion matrices
         for count, t in enumerate(selected_times):
-            confusion_matrices = results[str(t)]["confusion_matrices"]
-            if not confusion_matrices:
-                print(f"No confusion matrix available for time {t:.2f}s.")
-                continue
+            confusion_matrix = np.array(results[str(t)]["confusion_matrices"])
 
-            # Pad all matrices to the largest size
-            padded_matrices = []
-            for cm in confusion_matrices:
-                padded_matrix = np.zeros((max_rows, max_cols))
-                padded_matrix[:len(cm), :len(cm[0])] = cm  # Copy the original matrix into the padded one
-                padded_matrices.append(padded_matrix)
+            n_classes = confusion_matrix.shape[0]
 
-            # Combine the padded matrices (e.g., sum them)
-            combined_matrix = np.sum(padded_matrices, axis=0).astype(int)
+            # Ensure the confusion matrix is a proper 2D array
+            if confusion_matrix.ndim == 1:
+                confusion_matrix = np.vstack(confusion_matrix)  # Stack rows into a 2D array
 
-            # Plot the combined matrix
-            disp = ConfusionMatrixDisplay(confusion_matrix=combined_matrix)
-            disp.plot(ax=axes[count], cmap=plt.cm.Blues, colorbar=False)
+            disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix)
+            disp.plot(ax=axes[count],colorbar=False)
+            axes[count].set_title(f"Time: {time_breaks[count]}% of Max Time")
 
-            # Add a title to each subplot
-            axes[count].set_title(f"Time: {time_breaks[count]}%", fontsize=12)
-
-            # Show X-axis label and ticks only for the first subplot
-            if count == 0:
-                axes[count].set_ylabel("True Labels", fontsize=12)
-            else:
-                axes[count].set_ylabel('')  # Remove X-axis label
-                axes[count].set_yticks([])  # Remove X-axis ticks
-
-        plt.subplots_adjust(wspace=0.4)  # Increase horizontal space between subplots
-        plt.tight_layout(rect=[0, 0, 1, 0.95])  # Leave space for the overall title
         plt.show()
 
     def plot_all(self):

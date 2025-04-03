@@ -1,0 +1,5 @@
+[
+    {"dataset": "Iris"},
+    {"dataset": "MNIST"},
+    {"dataset": "CIFAR-2"}
+]
