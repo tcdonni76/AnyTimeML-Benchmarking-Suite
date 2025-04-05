@@ -5,3 +5,4 @@ fogml
 numpy
 pandas
 tensorflow
+keras

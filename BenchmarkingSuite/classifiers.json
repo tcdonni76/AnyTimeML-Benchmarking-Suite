@@ -1,0 +1,19 @@
+{
+    "data": [
+        {
+            "relative_file_path": "./AnytimeMLGeneratorsClassifiers/classifier1.py",
+            "model_name": "ClassifierModel1",
+            "dataset_name": "Dataset1"
+        },
+        {
+            "relative_file_path": "./AnytimeMLGeneratorsClassifiers/classifier2.py",
+            "model_name": "ClassifierModel2",
+            "dataset_name": "Dataset2"
+        },
+        {
+            "relative_file_path": "./AnytimeMLGeneratorsClassifiers/classifier3.py",
+            "model_name": "ClassifierModel3",
+            "dataset_name": "Dataset3"
+        }
+    ]
+}
