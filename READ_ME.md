@@ -97,6 +97,22 @@ When adding a custom model, there will be a prompt to enter the type of model, a
 Once the model type name has been entered, the hyperparameters for this specific configuration can then be entered one by one until you press Enter without any other text. An example of implementing a "test" model can be seen below:
 ![alt text](Images/image-5.png)
 
+To use your custom model in the [evaluating models](#evaluating-models), you need to add your classifier function to BenchmarkingSuite/Classifiers folder. The format of the name of the file needs to be as follows:
+
+**<DATASET_NAME>_<MODEL_NAME>.py**
+
+(For example, for RandomForestClassifier_Model_2 evaluating the Iris dataset, the name would be Iris_RandomForestClassifier_Model_2.py).
+
+This python file should contain a **classifier** function, which takes in the following inputs:
+- x: the sample from the daataset
+- results: a list of predictions to use in your algorithm (for instance for RFC it would store predictions performed by each tree)
+- deadline: the time budget provided telling the algorithm when to stop its inference
+- flag: an interruption flag that to implement "anytime" stopping in a deplyment environment.
+
+And this classifer function should return:
+- A tuple of the final prediction and the number of inferences made
+- For instance, the RFC classifiers return the prediction voted on in the majority voting mechanism and the number of trees that were processed before the deadline has been reached.
+
 ### Adding new datasets
 To add a new dataset into the suite, you need to alter the [DataHandler](BenchmarkingSuite/DataHandler.py) class.
 
@@ -117,6 +133,7 @@ As with [evaluating models](#evaluating-models), once this option is selected, t
 ![alt text](Images/image-7.png)
 
 Similarly, type the corresponding number of the model to proceed. Then various options are given for different "runs" of the model, through displaying each occurance of the selected model within the [results.json](BenchmarkingSuite/results.json) file, an example can be seen below:
+
 ![alt text](Images/image-8.png)
 
 Once a "run" has been selected to analyse, then the user can select the type of plot, and this will continue unilt the user chooses the Back to Main Menu option.
