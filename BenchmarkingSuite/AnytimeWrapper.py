@@ -116,7 +116,7 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
             
             # Now calculate max latency after all threads have finished
             max_latencies.append(max(latency))
-        median_latency = np.median(max_latencies)
+        median_latency = np.min(max_latencies)  # Get the min-max latency across all iterations
         return median_latency
 
     def conduct_test(self, X, y, model, model_name, dataset_name, iters=5, classifier_name=None):
@@ -201,6 +201,8 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
                     # Calculate the average number of trees processed per sample
                     n_trees = np.array([pred[1] for pred in predictions])
                     avg_trees.append(np.mean(n_trees))
+
+                    print(f"Accuracy: {accuracies[-1]:.4f},\tTrees: {avg_trees[-1]:.4f},\tMax Delay: {max_delays[-1]:.4f}")
 
                     # Calculate other metrics for this iteration of the fold
                     f1_scores.append(f1_score(y_test, y_pred, average='weighted', zero_division=0))
@@ -300,3 +302,76 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
     def fit(self, X, y):
         """Dummy method to comply with sklearn interface."""
         return self
+
+# wrapper = AnytimeBenchmarkTester()
+# import DataHandler
+# handler = DataHandler.DataHandler()
+# handler.model_path = "BenchmarkingSuite/models.json"
+# handler.results_path = "BenchmarkingSuite/results.json"
+# handler.data_path = "BenchmarkingSuite/datasets.json"
+# models = handler.load(handler.model_path) # Load in latest models
+
+# mnist_X, mnist_y = handler.load_dataset("MNIST") # Load in the MNIST dataset
+# iris_X, iris_y = handler.load_dataset("Iris") # Load in the Iris dataset
+# cifar_X, cifar_y = handler.load_dataset("CIFAR-2") # Load in the CIFAR-2 dataset
+
+# model_1 = models[0] # Get the first model
+# model_2 = models[1] # Get the second model
+# model_3 = models[2] # Get the third model
+# model_4 = models[3] # Get the fourth model
+
+
+# print(f"Model 1: {model_1['model_name']}")
+# print(f"Model 2: {model_2['model_name']}")
+# print(f"Model 3: {model_3['model_name']}")
+# print(f"Model 4: {model_4['model_name']}")
+
+# parameters_1 = model_1['hyperparameters']
+# model_name_1 = model_1['model_name']
+# model_1 = RandomForestClassifier(**parameters_1)
+
+# parameters_2 = model_2['hyperparameters']
+# model_name_2 = model_2['model_name']
+# model_2 = RandomForestClassifier(**parameters_2)
+
+# parameters_3 = model_3['hyperparameters']
+# model_name_3 = model_3['model_name']
+# model_3 = RandomForestClassifier(**parameters_3)
+
+# parameters_4 = model_4['hyperparameters']
+# model_name_4 = model_4['model_name']
+# model_4 = RandomForestClassifier(**parameters_4)
+
+
+
+# wrapper.conduct_test(iris_X, iris_y, model_2, model_name_2, "Iris", iters=5)
+# wrapper.conduct_test(iris_X, iris_y, model_3, model_name_3, "Iris", iters=5)
+# wrapper.conduct_test(iris_X, iris_y, model_4, model_name_4, "Iris", iters=5)
+
+# res = wrapper.conduct_test(mnist_X, mnist_y, model_2, model_name_2, "MNIST", iters=5)
+# dat = handler.prepare_data(res,model_name_2, "MNIST")
+# handler.save_data(dat, handler.results_path)
+
+# res = wrapper.conduct_test(mnist_X, mnist_y, model_3, model_name_3, "MNIST", iters=5)
+# dat = handler.prepare_data(res,model_name_3, "MNIST")
+# handler.save_data(dat, handler.results_path)
+
+# res = wrapper.conduct_test(mnist_X, mnist_y, model_4, model_name_4, "MNIST", iters=5)
+# dat = handler.prepare_data(res,model_name_4, "MNIST")
+# handler.save_data(dat, handler.results_path)
+
+# res = wrapper.conduct_test(cifar_X, cifar_y, model_1, model_name_1, "CIFAR-2", iters=5)
+# dat = handler.prepare_data(res,model_name_1, "CIFAR-2")
+# handler.save_data(dat, handler.results_path)
+
+# res = wrapper.conduct_test(cifar_X, cifar_y, model_2, model_name_2, "CIFAR-2", iters=5)
+# dat = handler.prepare_data(res,model_name_2, "CIFAR-2")
+# handler.save_data(dat, handler.results_path)
+
+# res = wrapper.conduct_test(cifar_X, cifar_y, model_3, model_name_3, "CIFAR-2", iters=5)
+# dat = handler.prepare_data(res,model_name_3, "CIFAR-2")
+# handler.save_data(dat, handler.results_path)
+
+# res = wrapper.conduct_test(cifar_X, cifar_y, model_4, model_name_4, "CIFAR-2", iters=5)
+# dat = handler.prepare_data(res,model_name_4, "CIFAR-2")
+# handler.save_data(dat, handler.results_path)

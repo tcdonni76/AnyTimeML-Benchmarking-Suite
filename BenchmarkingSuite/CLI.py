@@ -223,6 +223,36 @@ class CLI:
             elif plot_choice == 4:
                 break
 
+    def display_dataset_charts(self):
+        """Display charts for a selected dataset."""
+        print("Available Datasets:")
+        count = 1
+        for dataset in self.data_handler.datasets:
+            print(f"{count}. {dataset['dataset']}")
+            count += 1
+
+        try:
+            dataset_choice = int(input("\nEnter the number of the dataset to display: "))
+            if dataset_choice < 1 or dataset_choice > len(self.data_handler.datasets):
+                print("Invalid choice.")
+                return
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            return
+
+        dataset = self.data_handler.datasets[dataset_choice - 1]['dataset']
+
+        res = []
+        for run in self.data_handler.data:
+            if run['dataset'] == dataset:
+                res.append(run)
+        
+        self.plotter.plot_models(res, dataset)
+        
+        if not res:
+            print("No runs found for the selected dataset.")
+            return
+
     def plot_quality_map(self, time_acc, model):
         """Plot the quality map (accuracy vs. time)."""
         # Extract data for plotting
@@ -257,7 +287,8 @@ class CLI:
             print("1. Add a new model")
             print("2. Train model on a dataset")
             print("3. Display charts for an existing model")
-            print("4. Exit")
+            print("4. Display charts for a dataset")
+            print("5. Exit")
 
             try:
                 choice = int(input("\nEnter your choice: "))
@@ -272,6 +303,8 @@ class CLI:
             elif choice == 3:
                 self.display_charts()
             elif choice == 4:
+                self.display_dataset_charts()
+            elif choice == 5:
                 print("Exiting...")
                 break
             else:

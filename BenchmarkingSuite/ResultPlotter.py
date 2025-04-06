@@ -34,7 +34,7 @@ class ResultPlotter:
         plt.grid()
         plt.show()
 
-    def func(self, results, model_name, dataset):
+    def func(self, results, dataset):
         """
         Plot accuracy, F1 score, precision, and recall vs. time with confidence intervals in subplots.
         """
@@ -62,6 +62,54 @@ class ResultPlotter:
             axes[i].grid()
 
         plt.tight_layout(rect=[0, 0, 1, 0.95])  # Leave space for the overall title
+        plt.show()
+
+    def plot_models(self, results_set, dataset_name):
+        """
+        Plot accuracy, F1 score, precision, and recall vs. time with confidence intervals in subplots for multiple models.
+        """
+        metrics = ["acc", "f1", "precision", "recall"]
+        metric_labels = ["Accuracy", "F1 Score", "Precision", "Recall"]
+
+        # Create a figure with an additional row for max times
+        fig, axes = plt.subplots(2, len(metrics), figsize=(20, 10), gridspec_kw={"height_ratios": [4, 1]})
+        fig.suptitle(f"Metrics vs. Time for Different Models on {dataset_name}")
+
+        colors = plt.cm.tab10.colors  # Use a colormap for distinct colors
+        max_times = []  # To store max times for each model
+
+        # Plot metrics in the first row
+        for i, run in enumerate(results_set):
+            for j, metric in enumerate(metrics):
+                results = run['results']
+                times = sorted([float(t) for t in results.keys()])
+                norm_times = [t / max(times) * 100 for t in times]
+
+                values = [results[str(t)][metric] for t in times]
+                upper_bounds = [results[str(t)][f"{metric}_upper_bound"] for t in times]
+                lower_bounds = [results[str(t)][f"{metric}_lower_bound"] for t in times]
+
+                axes[0, j].plot(norm_times, values, label=f"{run['model']}", color=colors[i % len(colors)])
+                axes[0, j].fill_between(norm_times, lower_bounds, upper_bounds, color=colors[i % len(colors)], alpha=0.2)
+                axes[0, j].set_xlabel("% of Maximum Time")
+                axes[0, j].set_ylabel(metric_labels[j])
+                axes[0, j].set_title(metric_labels[j])
+                axes[0, j].legend()
+                axes[0, j].grid()
+
+            # Store max time for the model
+            max_times.append((run['model'], max(times)))
+
+        # Merge all axes in the second row into one
+        for ax in axes[1, :]:
+            ax.remove()  # Remove individual axes in the second row
+        # Add a new axis below the plots for the max times
+        ax_max_time = fig.add_axes([0.1, 0.05, 0.8, 0.1])  # [left, bottom, width, height]
+        max_time_text = "Max time to process a single sample:\n" + "\n".join([f"{model}: {time:.5f}s" for model, time in max_times])
+        ax_max_time.text(0.5, 0.5, max_time_text, ha="center", va="center", fontsize=12)
+        ax_max_time.axis("off")  # Hide the axis lines and ticks
+
+        plt.tight_layout(rect=[0, 0.15, 1, 0.95])  # Adjust layout to leave space for the text
         plt.show()
 
     def plot_roc_auc(self, results, dataset):
