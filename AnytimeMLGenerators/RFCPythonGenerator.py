@@ -6,7 +6,7 @@ import numpy as np
 class RFPyAnytimeGenerator(BaseGenerator):
     def __init__(self, clf, dataset):
         self.clf = clf
-        self.indent_str = '    '
+        self.indent_str = '  '
         self.dataset = dataset
         self.if_indent_str = self.indent_str # Preserve indent of if statement
 
@@ -23,7 +23,7 @@ class RFPyAnytimeGenerator(BaseGenerator):
                 return code
             else:
                 class_label = self.clf.classes_[np.argmax(tree.value[node])]
-                return indent + f'results.append({class_label})\n'
+                return indent + f'trees.append({class_label})\n'
         return recurse(0, 1)
 
     def generate_metadata(self, fold_number):
@@ -53,21 +53,21 @@ class RFPyAnytimeGenerator(BaseGenerator):
         self.clf.fit(X, y)  # Fit the model provided to the generator with the relevant data
         result = 'import time\n'
         result += self.generate_metadata(fold_number)
-        result += 'def %s(x, results, deadline, interrupt_flag):\n' % func_name
-
+        result += 'def %s(x, result):\n' % func_name
+        result += self.indent_str + '  trees = []\n'
 
         for idx, estimator in enumerate(self.clf.estimators_):
-            result += self.indent_str + f'\n    # Tree {idx}\n'
+            result += self.indent_str + f'\n# Tree {idx}\n'
             self.if_indent_str = self.indent_str
-            result += self.indent_str + f'if time.time() < deadline or interrupt_flag.is_set():\n'
             tree_code = self.generate_statements(estimator.tree_)
-            # Add extra indentation to tree code
-            tree_code = tree_code.replace('\n', '\n' + self.indent_str)
-            result += self.indent_str * 2 + tree_code.lstrip()
-            result += '\n' + self.if_indent_str + f'else:\n'
-            result += self.if_indent_str + f'  return vote_logic(results)\n'
 
-        result += self.indent_str + '\n    return vote_logic(results)\n'
+            
+            tree_code = tree_code.replace('\n', '\n' + self.indent_str)
+            # Add extra indentation to tree code
+            result += self.indent_str * 2 + tree_code.lstrip()
+            result += self.indent_str + f'  result = vote_logic(trees)\n'
+
+        result += self.indent_str + '\n    return vote_logic(trees)\n'
 
         # Voting logic
         result += self.indent_str + '\n    # Voting logic\n'
@@ -94,3 +94,10 @@ class RFPyAnytimeGenerator(BaseGenerator):
         with open(fname, 'w') as py_file:
             py_file.write(result)
         return result
+    
+
+from sklearn.datasets import load_iris
+
+X, y = load_iris(return_X_y=True)
+gen = RFPyAnytimeGenerator(RandomForestClassifier(), 'iris')
+gen.generate(X, y, 1, 'test_multiprocessing_classifier.py')
