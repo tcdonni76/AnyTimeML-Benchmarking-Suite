@@ -16,15 +16,18 @@ class RFPyAnytimeGenerator(BaseGenerator):
             if tree.feature[node] >= 0:
                 name = tree.feature[node]
                 threshold = tree.threshold[node]
-                code = indent + f"if x[{name}] <= {threshold:.10f}:\n"
-                code += recurse(tree.children_left[node], depth + 1)
-                code += indent + "else:\n"
-                code += recurse(tree.children_right[node], depth + 1)
+                code = indent + f"if time.time() < deadline:\n"
+                code += indent + self.indent_str + f"if x[{name}] <= {threshold:.10f}:\n"
+                code += recurse(tree.children_left[node], depth + 2)
+                code += indent + self.indent_str + f"else:\n"
+                code += recurse(tree.children_right[node], depth + 2)
                 return code
             else:
                 class_label = self.clf.classes_[np.argmax(tree.value[node])]
-                return indent + f'results.append({class_label})\n'
-        return recurse(0, 1)
+                code = indent + f"trees.append({class_label})\n"
+                code += indent + f"results[0], results[1] = vote_logic(trees)\n"  # Update results after each tree
+                return code
+        return recurse(0, depth)
 
     def generate_metadata(self, fold_number):
         """
@@ -54,20 +57,24 @@ class RFPyAnytimeGenerator(BaseGenerator):
         result = 'import time\n'
         result += self.generate_metadata(fold_number)
         result += 'def %s(x, results, deadline, interrupt_flag):\n' % func_name
-
+        result += self.indent_str + 'trees = []\n'
+        # result += self.indent_str + 'results = [-1, 0] # Initial, bad prediction\n'
 
         for idx, estimator in enumerate(self.clf.estimators_):
             result += self.indent_str + f'\n    # Tree {idx}\n'
             self.if_indent_str = self.indent_str
-            result += self.indent_str + f'if time.time() < deadline or interrupt_flag.is_set():\n'
+            # result += self.indent_str + f'if time.time() < deadline or interrupt_flag.is_set():\n'
             tree_code = self.generate_statements(estimator.tree_)
-            # Add extra indentation to tree code
-            tree_code = tree_code.replace('\n', '\n' + self.indent_str)
-            result += self.indent_str * 2 + tree_code.lstrip()
-            result += '\n' + self.if_indent_str + f'else:\n'
-            result += self.if_indent_str + f'  return vote_logic(results)\n'
 
-        result += self.indent_str + '\n    return vote_logic(results)\n'
+            result += tree_code
+
+            # Add extra indentation to tree code
+            #tree_code = tree_code.replace('\n', '\n' + self.indent_str)
+            #result += self.indent_str * 2 + tree_code.lstrip()
+            #result += '\n' + self.if_indent_str + f'else:\n'
+            #result += self.if_indent_str + f'  return vote_logic(results)\n'
+
+        #result += self.indent_str + '\n    return vote_logic(results)\n'
 
         # Voting logic
         result += self.indent_str + '\n    # Voting logic\n'
@@ -89,7 +96,7 @@ class RFPyAnytimeGenerator(BaseGenerator):
         result += self.indent_str * 3 + 'max_apperance = apperance\n'
         result += self.indent_str * 3 + 'result_class = i\n'
         result += self.indent_str + '\n    # Return the prediction and number of trees that have been processed\n'
-        result += self.indent_str + 'return result_class, len(results)\n'
+        result += self.indent_str + 'return [result_class, len(results)]\n'
 
         with open(fname, 'w') as py_file:
             py_file.write(result)

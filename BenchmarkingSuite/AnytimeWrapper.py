@@ -10,6 +10,11 @@ from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precisio
 import sys
 import os
 
+import psutil
+# Get the number of logical cores
+num_cores = psutil.cpu_count(logical=True)
+print(num_cores)
+
 # Add the parent directory to the Python path so there is seperation but can import generator
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(parent_dir)
@@ -54,7 +59,8 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
         """
         X = np.array(X, dtype=np.float32)  # Ensure correct data type
         num_samples = len(X)
-        results = [[] for _ in range(num_samples)]  # Each sample’s partial tree results
+        results = [[-1, 0] for _ in range(num_samples)]  # Give default values of -1 (bad prediction) and 0 (no estimators processed)
+
         # If we want to record stop times, create a list of dictionaries.
         threads = []
         predictions = []  # List to store predictions for each sample
@@ -62,8 +68,8 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
         def wrapper(idx, sample, predictions, delays):
             deadline = time.time() + timeout
             # Call classifier_fn with the sample, results list, deadline, and the interrupt flag.
-            result = self.classifier_fn(sample, results[idx], deadline, self.flag)
-            predictions.append(result)
+            self.classifier_fn(sample, results[idx], deadline, self.flag)
+            predictions.append(results[idx])
             delays.append(time.time() - deadline) # Get time between when it should have been stopped and when it actually stopped
                       
         deadlines = []
@@ -80,44 +86,59 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
         
         return predictions, delays
 
-    def get_full_time(self, samples, iters=5):
+    def get_full_time(self, samples, iters=3):
         """
+        Calculate the maximum time required to classify all samples using the full set of estimators.
+
+        This method runs the classifier function on all samples with no time limit (deadline set to infinity)
+        and measures the time taken for each sample. It repeats the process for a specified number of iterations
+        to smooth out inconsistencies caused by threading or system load.
 
         Args:
-            X: Input samples.
-        
+            samples (array-like): Input samples to classify.
+            iters (int): Number of iterations to repeat the process for consistency. Default is 3.
+
         Returns:
+            float: The minimum of the maximum latencies across all iterations. This represents the 
+                   minimum time required to classify all samples using all trees.
         """
-        samples = np.array(samples, dtype=np.float32)  # Ensure correct data type
+        # Ensure the input samples are in the correct data type
+        samples = np.array(samples, dtype=np.float32)
         num_samples = len(samples)
-        results = [[] for _ in range(num_samples)]  # Each sample’s partial tree results
-        threads = []
-        
+
+        # Initialise results list to store partial tree results for each sample
+        results = [[-1, 0] for _ in range(num_samples)]  # Give default values of -1 (bad prediction) and 0 (no estimators processed)
+
+        # Function to run the classifier on a single sample and record its latency
         def full_run(idx, sample, predictions, latency):
-            now = time.time()
-            # Call classifier_fn with the sample, results list, deadline, and the interrupt flag.
-            predictions.append(self.classifier_fn(sample, results[idx], np.inf, self.flag)[0])
-            latency.append(time.time() - now) # Get time it has taken to classify and predict on all 100 trees
-                      
-        predictions = []
-        max_latencies = []
+            start_time = time.time()
+            # Call the classifier function with no deadline (infinite time)
+            self.classifier_fn(sample, results[idx], np.inf, self.flag)
+            predictions.append(results[idx][0])
+            # Record the time taken to classify the sample
+            latency.append(time.time() - start_time)
         
+        predictions = []  # List to store predictions for all samples
+        max_latencies = []  # List to store the maximum latency for each iteration
+
+        # Repeat the process for the specified number of iterations
         for i in range(iters):
-            latency = []
+            latency = []  # List to store latencies for the current iteration
             threads = []  # Reset threads for each iteration
+            # Create and start a thread for each sample
             for idx, sample in enumerate(samples):
                 t = threading.Thread(target=full_run, args=(idx, sample, predictions, latency))
                 threads.append(t)
                 t.start()
-            
             # Wait for all threads to complete
             for t in threads:
                 t.join()
-            
-            # Now calculate max latency after all threads have finished
+            # Record the maximum latency for the current iteration
             max_latencies.append(max(latency))
-        median_latency = np.min(max_latencies)  # Get the min-max latency across all iterations
-        return median_latency
+        # Return the minimum of the maximum latencies across all iterations
+        # This ensures we account for the fastest "worst-case" scenario
+        lat = np.min(max_latencies)
+        return lat
 
     def conduct_test(self, X, y, model, model_name, dataset_name, iters=5, classifier_name=None):
         """
@@ -168,12 +189,11 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
             accuracies = []             #
             avg_trees = []              # 
             confusion_matrices = []     #  
-            f1_scores = []              #   
-            precision_scores = []       # Store metrics for each iteration of each fold
+            f1_scores = []              # Store metrics for each iteration of each fold
+            precision_scores = []       # 
             recall_scores = []          #   
-            all_y_true = []             #  
-            all_y_pred_proba = []       # 
             max_delays = []             # 
+            usages = []
 
             for i in range(iters): # Iterate through to smooth out inconsistencies from threading
                 print(f"ITERATION: {i+1}/{iters}")
@@ -189,7 +209,12 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
                     self.load_classifier(classifier_name)
 
                     # Predict with a timeout
+                    process = psutil.Process()  # Get the current process
+                    cpu_before = process.cpu_percent(interval=None)  # CPU usage before prediction
                     predictions, delays = self.predict_thread(X_test, timeout=time_limit)
+                    cpu_after = process.cpu_percent(interval=None)  # CPU usage after prediction
+
+                    usages.append((cpu_after - cpu_before) / num_cores)  # Calculate CPU usage for this iteration
 
                     # Collect the accuracy for this iteration of the fold
                     y_pred = np.array([pred[0] for pred in predictions])
@@ -211,74 +236,80 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
                     confusion_matrices.append(confusion_matrix(y_test, y_pred, labels=all_labels).tolist()) 
                     fold_count += 1
 
-            # Calculate mean accuracy, standard deviation, and confidence interval
-            mean_accuracy = np.median(accuracies)
+            # Calculate median accuracy, standard deviation, and confidence interval
+            median_accuracy = np.median(accuracies)
             std_accuracy = np.std(accuracies)
             conf_interval = 1.96 * std_accuracy / np.sqrt(len(accuracies))  # 95% confidence interval
 
             av_trees = np.median(avg_trees)
 
             # Calculate other metrics
-            mean_f1 = np.median(f1_scores)
+            median_f1 = np.median(f1_scores)
             std_f1 = np.std(f1_scores)
             conf_interval_f1 = 1.96 * std_f1 / np.sqrt(len(f1_scores))
 
-            mean_precision = np.median(precision_scores)
+            median_precision = np.median(precision_scores)
             std_precision = np.std(precision_scores)
             conf_interval_precision = 1.96 * std_precision / np.sqrt(len(precision_scores))
 
-            mean_recall = np.median(recall_scores)
+            median_recall = np.median(recall_scores)
             std_recall = np.std(recall_scores)
             conf_interval_recall = 1.96 * std_recall / np.sqrt(len(recall_scores))
             
-            mean_max_delay = np.median(max_delays)
+            median_max_delay = np.median(max_delays)
             std_max_delay = np.std(max_delays)
             conf_interval_max_delay = 1.96 * std_max_delay / np.sqrt(len(max_delays))
 
-            confusion_matrices = np.round(np.mean(confusion_matrices, axis=0)).tolist()  # Average and round confusion matrices across folds
+            confusion_matrices = np.round(np.median(confusion_matrices, axis=0)).tolist()  # Average and round confusion matrices across folds
 
             # Construct the dictionary to pass to the JSON results file
             time_accuracies[time_limit] = {
                 # Accuracy metrics
-                "acc": mean_accuracy, # Mean accuracy across the fold
+                "acc": median_accuracy, # median accuracy across the fold
                 "acc_std": std_accuracy, # Standard deviation of accuracies across the fold
-                "acc_upper_bound": min(mean_accuracy + conf_interval, 1.0),  # Upper bound of confidence interval
-                "acc_lower_bound": max(mean_accuracy - conf_interval, 0.0),   # Lower bound of confidence interval
+                "acc_upper_bound": min(median_accuracy + conf_interval, 1.0),  # Upper bound of confidence interval
+                "acc_lower_bound": max(median_accuracy - conf_interval, 0.0),   # Lower bound of confidence interval
 
                 # Tree metrics
                 "avg_trees": av_trees, # The average number of trees processed per sample over the fold
 
                 # F1 metrics
-                "f1": mean_f1, # Average F1 score across the fold
+                "f1": median_f1, # Average F1 score across the fold
                 "f1_std": std_f1, # Standard deviation of F1 scores across the fold
-                "f1_upper_bound": mean_f1 + conf_interval_f1,  # Upper bound of confidence interval
-                "f1_lower_bound": mean_f1 - conf_interval_f1,   # Lower bound of confidence interval
+                "f1_upper_bound": median_f1 + conf_interval_f1,  # Upper bound of confidence interval
+                "f1_lower_bound": median_f1 - conf_interval_f1,   # Lower bound of confidence interval
 
                 # Precision metrics
-                "precision": mean_precision, # Average precision across the fold
+                "precision": median_precision, # Average precision across the fold
                 "precision_std": std_precision, # Standard deviation of precision scores across the fold
-                "precision_upper_bound": mean_precision + conf_interval_precision,  # Upper bound of confidence interval
-                "precision_lower_bound": mean_precision - conf_interval_precision,   # Lower bound of confidence interval
+                "precision_upper_bound": median_precision + conf_interval_precision,  # Upper bound of confidence interval
+                "precision_lower_bound": median_precision - conf_interval_precision,   # Lower bound of confidence interval
 
                 # Recall metrics
-                "recall": mean_recall, # Average recall across the fold
+                "recall": median_recall, # Average recall across the fold
                 "recall_std": std_recall, # Standard deviation of recall scores across the fold
-                "recall_upper_bound": mean_recall + conf_interval_recall,  # Upper bound of confidence interval
-                "recall_lower_bound": mean_recall - conf_interval_recall,   # Lower bound of confidence interval
+                "recall_upper_bound": median_recall + conf_interval_recall,  # Upper bound of confidence interval
+                "recall_lower_bound": median_recall - conf_interval_recall,   # Lower bound of confidence interval
 
                 # Delay metrics
-                "max_delay": mean_max_delay, # Store the average max delay across the fold
+                "max_delay": median_max_delay, # Store the average max delay across the fold
                 "max_delay_std": std_max_delay, # Standard deviation of max delays across the fold
-                "max_delay_upper_bound": mean_max_delay + conf_interval_max_delay,  # Upper bound of confidence interval
-                "max_delay_lower_bound": mean_max_delay - conf_interval_max_delay,   # Lower bound of confidence interval
+                "max_delay_upper_bound": median_max_delay + conf_interval_max_delay,  # Upper bound of confidence interval
+                "max_delay_lower_bound": median_max_delay - conf_interval_max_delay,   # Lower bound of confidence interval
 
                 # Confusion matrices
                 "confusion_matrices": confusion_matrices,  # Store confusion matrices for all folds
+
+                # Median energy consumption
+                "energy": np.median(usages),  # Store the median energy consumption across the fold
+                "energy_std": np.std(usages),  # Standard deviation of energy consumption across the fold
+
                 "n": iters  # Amount of samples / iters in the fold
             }
-            print(f"Accuracy: {mean_accuracy:.4f} ± {conf_interval:.4f}\t{av_trees} trees")
+            print(f"Accuracy: {median_accuracy:.4f} ± {conf_interval:.4f}\t{av_trees} trees")
             count += 1
 
+        time_accuracies['auc'] = self.calc_auc(time_accuracies)  # Calculate AUC for the results
 
         return time_accuracies
 
@@ -303,75 +334,36 @@ class AnytimeBenchmarkTester(BaseEstimator, ClassifierMixin):
         """Dummy method to comply with sklearn interface."""
         return self
 
-# wrapper = AnytimeBenchmarkTester()
-# import DataHandler
-# handler = DataHandler.DataHandler()
-# handler.model_path = "BenchmarkingSuite/models.json"
-# handler.results_path = "BenchmarkingSuite/results.json"
-# handler.data_path = "BenchmarkingSuite/datasets.json"
-# models = handler.load(handler.model_path) # Load in latest models
+    def calc_auc(self, results):
+        """
+        Calculate the AUC (Area Under the Curve) for the given results.
 
-# mnist_X, mnist_y = handler.load_dataset("MNIST") # Load in the MNIST dataset
-# iris_X, iris_y = handler.load_dataset("Iris") # Load in the Iris dataset
-# cifar_X, cifar_y = handler.load_dataset("CIFAR-2") # Load in the CIFAR-2 dataset
+        Args:
+            results: Dictionary of results containing accuracy and time metrics.
 
-# model_1 = models[0] # Get the first model
-# model_2 = models[1] # Get the second model
-# model_3 = models[2] # Get the third model
-# model_4 = models[3] # Get the fourth model
+        Returns:
+            auc: The calculated AUC value.
+        """
+        # Extract time and accuracy values from the results
+        times = sorted([float(t) for t in results.keys() if t != 'auc'])  # Exclude 'auc' key
+        metrics = ["acc", "f1", "precision", "recall"]
+        auc_values = {}
 
+        # Normalize the time values to the range [0, 1]
+        min_time = min(times)
+        max_time = max(times)
+        normalized_times = [(t - min_time) / (max_time - min_time) for t in times]
 
-# print(f"Model 1: {model_1['model_name']}")
-# print(f"Model 2: {model_2['model_name']}")
-# print(f"Model 3: {model_3['model_name']}")
-# print(f"Model 4: {model_4['model_name']}")
+        for metric in metrics:
+            # Extract accuracy values for the current metric
+            accuracies = [results[(t)][metric] for t in times]
 
-# parameters_1 = model_1['hyperparameters']
-# model_name_1 = model_1['model_name']
-# model_1 = RandomForestClassifier(**parameters_1)
+            # Calculate AUC using the trapezoidal rule
+            if len(normalized_times) > 1 and len(accuracies) > 1:
+                auc_values[metric] = np.trapezoid(accuracies, normalized_times)
+            else:
+                auc_values[metric] = 0  # Handle cases with insufficient data
 
-# parameters_2 = model_2['hyperparameters']
-# model_name_2 = model_2['model_name']
-# model_2 = RandomForestClassifier(**parameters_2)
-
-# parameters_3 = model_3['hyperparameters']
-# model_name_3 = model_3['model_name']
-# model_3 = RandomForestClassifier(**parameters_3)
-
-# parameters_4 = model_4['hyperparameters']
-# model_name_4 = model_4['model_name']
-# model_4 = RandomForestClassifier(**parameters_4)
-
-
-
-# wrapper.conduct_test(iris_X, iris_y, model_2, model_name_2, "Iris", iters=5)
-# wrapper.conduct_test(iris_X, iris_y, model_3, model_name_3, "Iris", iters=5)
-# wrapper.conduct_test(iris_X, iris_y, model_4, model_name_4, "Iris", iters=5)
-
-# res = wrapper.conduct_test(mnist_X, mnist_y, model_2, model_name_2, "MNIST", iters=5)
-# dat = handler.prepare_data(res,model_name_2, "MNIST")
-# handler.save_data(dat, handler.results_path)
-
-# res = wrapper.conduct_test(mnist_X, mnist_y, model_3, model_name_3, "MNIST", iters=5)
-# dat = handler.prepare_data(res,model_name_3, "MNIST")
-# handler.save_data(dat, handler.results_path)
-
-# res = wrapper.conduct_test(mnist_X, mnist_y, model_4, model_name_4, "MNIST", iters=5)
-# dat = handler.prepare_data(res,model_name_4, "MNIST")
-# handler.save_data(dat, handler.results_path)
-
-# res = wrapper.conduct_test(cifar_X, cifar_y, model_1, model_name_1, "CIFAR-2", iters=5)
-# dat = handler.prepare_data(res,model_name_1, "CIFAR-2")
-# handler.save_data(dat, handler.results_path)
-
-# res = wrapper.conduct_test(cifar_X, cifar_y, model_2, model_name_2, "CIFAR-2", iters=5)
-# dat = handler.prepare_data(res,model_name_2, "CIFAR-2")
-# handler.save_data(dat, handler.results_path)
-
-# res = wrapper.conduct_test(cifar_X, cifar_y, model_3, model_name_3, "CIFAR-2", iters=5)
-# dat = handler.prepare_data(res,model_name_3, "CIFAR-2")
-# handler.save_data(dat, handler.results_path)
-
-# res = wrapper.conduct_test(cifar_X, cifar_y, model_4, model_name_4, "CIFAR-2", iters=5)
-# dat = handler.prepare_data(res,model_name_4, "CIFAR-2")
-# handler.save_data(dat, handler.results_path)
+        # Calculate the average AUC across all metrics
+        average_auc = np.mean(list(auc_values.values()))
+        return average_auc

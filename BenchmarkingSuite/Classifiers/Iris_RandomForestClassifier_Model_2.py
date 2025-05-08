@@ -17,6 +17,7 @@ Hyperparameters:
      min_samples_leaf: 2
      min_samples_split: 5
      min_weight_fraction_leaf: 0.0
+     monotonic_cst: None
      n_estimators: 10
      n_jobs: None
      oob_score: False
@@ -26,195 +27,222 @@ Hyperparameters:
 
 """
 def classifier(x, results, deadline, interrupt_flag):
+    trees = []
     
     # Tree 0
-    if time.time() < deadline or interrupt_flag.is_set():
-        if x[0] <= 5.4500000477:
-            if x[3] <= 0.8000000119:
-                results.append(0)
-            else:
-                results.append(1)
+    if time.time() < deadline:
+        if x[2] <= 4.7500000000:
+            if time.time() < deadline:
+                if x[2] <= 2.4499999881:
+                    trees.append(0)
+                    results[0], results[1] = vote_logic(trees)
+                else:
+                    trees.append(1)
+                    results[0], results[1] = vote_logic(trees)
         else:
-            if x[2] <= 4.8500001431:
-                if x[3] <= 0.7000000030:
-                    results.append(0)
+            if time.time() < deadline:
+                if x[3] <= 1.7500000000:
+                    trees.append(2)
+                    results[0], results[1] = vote_logic(trees)
                 else:
-                    results.append(1)
-            else:
-                if x[2] <= 4.9500000477:
-                    results.append(2)
-                else:
-                    results.append(2)
-    
-    else:
-      return vote_logic(results)
+                    trees.append(2)
+                    results[0], results[1] = vote_logic(trees)
     
     # Tree 1
-    if time.time() < deadline or interrupt_flag.is_set():
-        if x[3] <= 0.7000000030:
-            results.append(0)
+    if time.time() < deadline:
+        if x[2] <= 2.4499999881:
+            trees.append(0)
+            results[0], results[1] = vote_logic(trees)
         else:
-            if x[2] <= 4.9000000954:
-                if x[1] <= 2.9500000477:
-                    results.append(1)
+            if time.time() < deadline:
+                if x[3] <= 1.7500000000:
+                    if time.time() < deadline:
+                        if x[2] <= 5.0499999523:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
                 else:
-                    results.append(1)
-            else:
-                if x[2] <= 5.1499998569:
-                    results.append(2)
-                else:
-                    results.append(2)
-    
-    else:
-      return vote_logic(results)
+                    if time.time() < deadline:
+                        if x[2] <= 4.8500001431:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
     
     # Tree 2
-    if time.time() < deadline or interrupt_flag.is_set():
-        if x[2] <= 2.4499999881:
-            results.append(0)
+    if time.time() < deadline:
+        if x[2] <= 2.5999999642:
+            trees.append(0)
+            results[0], results[1] = vote_logic(trees)
         else:
-            if x[2] <= 4.7500000000:
-                results.append(1)
-            else:
-                if x[3] <= 1.7500000000:
-                    results.append(1)
+            if time.time() < deadline:
+                if x[0] <= 6.2500000000:
+                    if time.time() < deadline:
+                        if x[0] <= 5.9500000477:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
                 else:
-                    results.append(2)
-    
-    else:
-      return vote_logic(results)
+                    if time.time() < deadline:
+                        if x[3] <= 1.7500000000:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
     
     # Tree 3
-    if time.time() < deadline or interrupt_flag.is_set():
-        if x[3] <= 0.7500000000:
-            results.append(0)
+    if time.time() < deadline:
+        if x[2] <= 2.4499999881:
+            trees.append(0)
+            results[0], results[1] = vote_logic(trees)
         else:
-            if x[0] <= 6.0499999523:
-                if x[2] <= 4.9000000954:
-                    results.append(1)
-                else:
-                    results.append(2)
-            else:
+            if time.time() < deadline:
                 if x[3] <= 1.6999999881:
-                    results.append(1)
+                    if time.time() < deadline:
+                        if x[2] <= 4.9500000477:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
                 else:
-                    results.append(2)
-    
-    else:
-      return vote_logic(results)
+                    if time.time() < deadline:
+                        if x[1] <= 3.1499999762:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
     
     # Tree 4
-    if time.time() < deadline or interrupt_flag.is_set():
-        if x[2] <= 2.4499999881:
-            results.append(0)
+    if time.time() < deadline:
+        if x[3] <= 0.8000000119:
+            trees.append(0)
+            results[0], results[1] = vote_logic(trees)
         else:
-            if x[2] <= 4.8500001431:
-                if x[2] <= 4.7500000000:
-                    results.append(1)
+            if time.time() < deadline:
+                if x[3] <= 1.7500000000:
+                    if time.time() < deadline:
+                        if x[2] <= 4.9000000954:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
                 else:
-                    results.append(1)
-            else:
-                if x[0] <= 6.5999999046:
-                    results.append(2)
-                else:
-                    results.append(2)
-    
-    else:
-      return vote_logic(results)
+                    trees.append(2)
+                    results[0], results[1] = vote_logic(trees)
     
     # Tree 5
-    if time.time() < deadline or interrupt_flag.is_set():
-        if x[3] <= 0.7500000000:
-            results.append(0)
+    if time.time() < deadline:
+        if x[2] <= 2.4499999881:
+            trees.append(0)
+            results[0], results[1] = vote_logic(trees)
         else:
-            if x[2] <= 4.7500000000:
-                results.append(1)
-            else:
-                if x[0] <= 6.5999999046:
-                    results.append(2)
+            if time.time() < deadline:
+                if x[2] <= 4.7500000000:
+                    trees.append(1)
+                    results[0], results[1] = vote_logic(trees)
                 else:
-                    results.append(2)
-    
-    else:
-      return vote_logic(results)
+                    if time.time() < deadline:
+                        if x[3] <= 1.8499999642:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
     
     # Tree 6
-    if time.time() < deadline or interrupt_flag.is_set():
-        if x[3] <= 0.8000000119:
-            results.append(0)
+    if time.time() < deadline:
+        if x[3] <= 0.7500000000:
+            trees.append(0)
+            results[0], results[1] = vote_logic(trees)
         else:
-            if x[2] <= 4.7500000000:
-                results.append(1)
-            else:
-                if x[3] <= 1.6999999881:
-                    results.append(2)
+            if time.time() < deadline:
+                if x[2] <= 4.7500000000:
+                    trees.append(1)
+                    results[0], results[1] = vote_logic(trees)
                 else:
-                    results.append(2)
-    
-    else:
-      return vote_logic(results)
+                    if time.time() < deadline:
+                        if x[2] <= 4.8500001431:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
     
     # Tree 7
-    if time.time() < deadline or interrupt_flag.is_set():
-        if x[2] <= 2.6999999881:
-            results.append(0)
+    if time.time() < deadline:
+        if x[2] <= 4.8500001431:
+            if time.time() < deadline:
+                if x[3] <= 0.8000000119:
+                    trees.append(0)
+                    results[0], results[1] = vote_logic(trees)
+                else:
+                    trees.append(1)
+                    results[0], results[1] = vote_logic(trees)
         else:
-            if x[2] <= 4.9500000477:
-                if x[2] <= 4.7500000000:
-                    results.append(1)
+            if time.time() < deadline:
+                if x[1] <= 2.5499999523:
+                    trees.append(2)
+                    results[0], results[1] = vote_logic(trees)
                 else:
-                    results.append(1)
-            else:
-                if x[2] <= 5.1499998569:
-                    results.append(2)
-                else:
-                    results.append(2)
-    
-    else:
-      return vote_logic(results)
+                    trees.append(2)
+                    results[0], results[1] = vote_logic(trees)
     
     # Tree 8
-    if time.time() < deadline or interrupt_flag.is_set():
-        if x[3] <= 0.8000000119:
-            results.append(0)
+    if time.time() < deadline:
+        if x[0] <= 5.5499999523:
+            if time.time() < deadline:
+                if x[2] <= 2.4499999881:
+                    trees.append(0)
+                    results[0], results[1] = vote_logic(trees)
+                else:
+                    trees.append(1)
+                    results[0], results[1] = vote_logic(trees)
         else:
-            if x[3] <= 1.6999999881:
-                if x[0] <= 5.9500000477:
-                    results.append(1)
+            if time.time() < deadline:
+                if x[3] <= 1.6999999881:
+                    if time.time() < deadline:
+                        if x[3] <= 1.0500000119:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
                 else:
-                    results.append(1)
-            else:
-                if x[3] <= 1.8499999642:
-                    results.append(2)
-                else:
-                    results.append(2)
-    
-    else:
-      return vote_logic(results)
+                    trees.append(2)
+                    results[0], results[1] = vote_logic(trees)
     
     # Tree 9
-    if time.time() < deadline or interrupt_flag.is_set():
-        if x[0] <= 5.5499999523:
-            if x[1] <= 2.7500000000:
-                results.append(1)
-            else:
-                results.append(0)
+    if time.time() < deadline:
+        if x[2] <= 2.4499999881:
+            trees.append(0)
+            results[0], results[1] = vote_logic(trees)
         else:
-            if x[0] <= 6.0499999523:
-                if x[1] <= 3.5000000000:
-                    results.append(1)
+            if time.time() < deadline:
+                if x[3] <= 1.6999999881:
+                    if time.time() < deadline:
+                        if x[1] <= 2.8500000238:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(1)
+                            results[0], results[1] = vote_logic(trees)
                 else:
-                    results.append(0)
-            else:
-                if x[2] <= 4.8500001431:
-                    results.append(1)
-                else:
-                    results.append(2)
-    
-    else:
-      return vote_logic(results)
-    
-    return vote_logic(results)
+                    if time.time() < deadline:
+                        if x[3] <= 1.8499999642:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
+                        else:
+                            trees.append(2)
+                            results[0], results[1] = vote_logic(trees)
     
     # Voting logic
 def vote_logic(results):
@@ -235,4 +263,4 @@ def vote_logic(results):
             result_class = i
     
     # Return the prediction and number of trees that have been processed
-    return result_class, len(results)
+    return [result_class, len(results)]

@@ -20,7 +20,8 @@
             "random_state": null,
             "verbose": 0,
             "warm_start": false
-        }
+        },
+        "path": null
     },
     {
         "model_name": "RandomForestClassifier_Model_2",
@@ -43,7 +44,8 @@
             "random_state": null,
             "verbose": 0,
             "warm_start": false
-        }
+        },
+        "path": null
     },
     {
         "model_name": "RandomForestClassifier_Model_3",
@@ -66,7 +68,8 @@
             "random_state": null,
             "verbose": 0,
             "warm_start": false
-        }
+        },
+        "path": null
     },
     {
         "model_name": "RandomForestClassifier_Model_4",
@@ -89,6 +92,42 @@
             "random_state": null,
             "verbose": 0,
             "warm_start": false
-        }
+        },
+        "path": null
+    },
+    {
+        "model_name": "RandomForestClassifier_Model_5",
+        "hyperparameters": {
+            "bootstrap": true,
+            "ccp_alpha": 0.0,
+            "class_weight": null,
+            "criterion": "gini",
+            "max_depth": 10,
+            "max_features": "sqrt",
+            "max_leaf_nodes": null,
+            "max_samples": null,
+            "min_impurity_decrease": 0.0,
+            "min_samples_leaf": 3,
+            "min_samples_split": 5,
+            "min_weight_fraction_leaf": 0.0,
+            "monotonic_cst": null,
+            "n_estimators": 25,
+            "n_jobs": null,
+            "oob_score": false,
+            "random_state": null,
+            "verbose": 0,
+            "warm_start": false
+        },
+        "path": null
+    },
+    {
+        "model_name": "test_Model_1",
+        "path": "C:\\Users\\tcd19\\Documents\\AnytTImeML Suite\\BenchmarkingSuite\\Classifiers\\Iris_RandomForestClassifier_Model_2.py",
+        "hyperparameters": null
+    },
+    {
+        "model_name": "test_Model_2",
+        "path": "C:\\Users\\tcd19\\Documents\\AnytTImeML Suite\\BenchmarkingSuite\\Classifiers\\Iris_RandomForestClassifier_Model_2.py",
+        "hyperparameters": null
     }
 ]

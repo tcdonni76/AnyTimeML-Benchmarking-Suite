@@ -1,5 +1,9 @@
 [
     {"dataset": "Iris"},
     {"dataset": "MNIST"},
-    {"dataset": "CIFAR-2"}
+    {"dataset": "CIFAR-2"},
+    {"dataset" : "Speech Commands"},
+    {"dataset": "COCO"},
+    {"dataset": "Wine"},
+    {"dataset": "Cancer"}
 ]

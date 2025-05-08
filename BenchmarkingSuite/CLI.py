@@ -18,33 +18,6 @@ class CLI:
         self.data_handler = DataHandler(self.data_file)
         self.plotter = ResultPlotter()
 
-    def save_datasets(self):
-        """Save the current dataset mapping to the configuration file."""
-        with open(self.datasets_file, "w") as f:
-            json.dump(self.dataset_mapping, f, indent=4)
-
-
-        """Load the Iris dataset."""
-        print("Loading Iris dataset...")
-        iris = load_iris()
-        X = iris["data"]
-        y = iris["target"]
-        print("Iris dataset loaded.")
-        return X, y
-
-    def add_new_dataset(self):
-        """Add a new dataset dynamically via the CLI."""
-        name = input("Enter the name of the new dataset: ")
-        function = input("Enter the Python function to load the dataset (e.g., 'self.load_custom_dataset'): ")
-
-        if name in self.dataset_mapping:
-            print(f"Dataset '{name}' already exists.")
-            return
-
-        self.dataset_mapping[name] = function
-        self.save_datasets()
-        print(f"Dataset '{name}' added successfully.")
-
     def select_dataset(self):
         """Allow the user to select a dataset."""
         print("\nAvailable Datasets:")
@@ -65,29 +38,51 @@ class CLI:
         return load_function()
 
     def select_model(self):
-        """Allow the user to select a model from the JSON file."""
-        self.data_handler.models = self.data_handler.load(self.model_file) # Load in latest models
-        count = 1
+        """
+        Allows the user to select a machine learning model from a list of available models.
+
+        The method displays a list of models, prompts the user to select one by entering its
+        corresponding number, and initializes the selected model with its hyperparameters.
+        Handles both RandomForestClassifier and custom classifiers.
+
+        Returns:
+            tuple: A tuple containing:
+                - model_name (str): The name of the selected model.
+                - model (object): The initialized model object or None for custom models.
+                - classifier_path (str): The path to the custom classifier file (if applicable).
+        """
         self.print_models()
         model_choice = int(input("\nEnter the number of the model to use: "))
+        if model_choice < 1 or model_choice > len(self.data_handler.models):
+            print("Invalid input. Please enter a number in the range.")
+            return self.select_model()
+
         try:
             model = self.data_handler.models[model_choice - 1]
-            if model['model_name'].startswith('RandomForestClassifier'):
+            model_name = model['model_name']
+            classifier_path = model.get('path', None)
+
+            if model_name.startswith('RandomForestClassifier'):
+                # Initialize RFC with hyperparameters
                 parameters = model['hyperparameters']
-                model_name = model['model_name']
                 model = RandomForestClassifier(**parameters)
             else:
-                print("Model type yet not supported.")
-        except ValueError or IndexError:
+                # Custom model: Return the path for dynamic loading
+                model = None
+                if not classifier_path:
+                    print("Error: Custom model path not found.")
+                    return self.select_model()
+
+            return model_name, model, classifier_path
+
+        except (ValueError, IndexError):
             print("Invalid input. Please enter a number in the range.")
-            self.select_model()
-        return model_name, model
+            return self.select_model()
 
     def load_new_model(self):
         print("Options:")
         print("1. RandomForestClassifier")
-        print("2. Neural Network")
-        print("3. Enter a custom model")
+        print("2. Enter a custom model")
         
         try:
             model_choice = int(input("\nEnter your choice: "))
@@ -104,57 +99,60 @@ class CLI:
             n_estimators, max_depth, min_samples_split, min_samples_leaf = hyperparameters
 
             model = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf)
-            self.data_handler.add_new_model(model)
+            model_name = model.__class__.__name__
+            classifier_path = None
+            print("New Model added successfully.")
 
-        elif model_choice == 2: # If user wants a neural net
-            print("NEURAL NETWORKS NOT YET IMPLEMENTED") #TODO: Implement neural networks
 
-        elif model_choice == 3: # If user wants to enter a new model
+        elif model_choice == 2: # If user wants to enter a new model
             print("The naming convention for models is: <model_type>_Model_<model_number>")
-            print("For example, the second RandomForestClassifier would be named RandomForest_Model_2")
+            print("For example, the second RandomForestClassifier would be named RandomForestClassifier_Model_2")
             print("Enter the model type (eg. RandomForestClassifier):")
-            model_type = input()
+            model_name = input()
 
-            print("Enter the hyperparameters one by one. Press Enter without typing anything to finish.")
-            hyperparameters = {}
-            while True:
-                key = input("Enter the hyperparameter name (or press Enter to finish): ")
-                if not key:
-                    break
-                value = input(f"Enter the value for '{key}': ")
-                try:
-                    # Attempt to parse the value as JSON (e.g., for numbers, booleans, etc.)
-                    value = json.loads(value)
-                except json.JSONDecodeError:
-                    pass  # Keep the value as a string if it cannot be parsed
-                hyperparameters[key] = value
+            classifier_path = os.path.join(os.getcwd(), input("Enter the relative path to the classifier file: "))
+            model = None
+            if not os.path.exists(classifier_path):
+                print("Error: The specified file does not exist. Please check the path and try again.")
+                return
 
-
-            self.data_handler.add_custom_model(model_type, hyperparameters)
+        self.data_handler.add_new_model(model_name, model, classifier_path)
+        print("New Model added successfully.")
 
     def evaluate_model(self):
-        
-        # First choose model
-        model_name, model = self.select_model()
-            
-        # Now give option of dataset selection
-        
-        print("Please select a dataset to train")
+        """
+        Evaluate a selected model on a selected dataset.
+        Handles both RandomForestClassifier and custom classifiers.
+        """
+        # Step 1: Select the model
+        model_name, model, classifier_path = self.select_model()
+
+        # Step 2: Select the dataset
+        print("Please select a dataset to train:")
         for count, dataset in enumerate(self.data_handler.datasets):
             print(f"{count + 1}. {dataset['dataset']}")
         dataset_choice = int(input("\nEnter the number of the dataset to use: "))
         try:
             data_X, data_y = self.data_handler.load_dataset(self.data_handler.datasets[dataset_choice - 1]['dataset'])
-        except IndexError or ValueError:
+        except (IndexError, ValueError):
             print("Invalid input. Please enter a number displayed.")
-            self.load_new_model()
+            return self.evaluate_model()
 
-        # Now train the model
+        # Step 3: Train and evaluate the model
         wrapper = AnytimeBenchmarkTester()
-        results = wrapper.conduct_test(data_X, data_y, model, model_name, self.data_handler.datasets[dataset_choice - 1]['dataset'])
+        results = wrapper.conduct_test(
+            X=data_X,
+            y=data_y,
+            model=model,
+            model_name=model_name,
+            dataset_name=self.data_handler.datasets[dataset_choice - 1]['dataset'],
+            classifier_name=classifier_path  # Pass the path for custom models
+        )
+
+        # Step 4: Save the results
         data = self.data_handler.prepare_data(results, model_name, self.data_handler.datasets[dataset_choice - 1]['dataset'])
         self.data_handler.save_data(data, self.data_handler.file_path)
-        print("Model trained successfully.")
+        print("Model trained and evaluated successfully.")
 
     def print_models(self):
         """Print all models in the JSON file in presentafble way."""
@@ -163,10 +161,16 @@ class CLI:
         for i, model in enumerate(self.data_handler.models, start=1):
             print(f"{i}. Name: {model['model_name']}")
             # Group hyperparameters into chunks of 2 for better readability
-            hyperparameters = list(model['hyperparameters'].items())
+            try:
+                hyperparameters = list(model['hyperparameters'].items())
+            except KeyError:
+                print("Error: Hyperparameters not found for this model.")
+                hyperparameters = []
+            except AttributeError:
+                pass
 
             # Calculate the maximum key length for alignment
-            max_key_length = max(len(key)+len(str(val)) for key, val in hyperparameters)
+            max_key_length = max_key_length = max((len(key) + len(str(val)) for key, val in hyperparameters), default=0)
 
             for j in range(0, len(hyperparameters), 2):
                 chunk = hyperparameters[j:j + 2]
@@ -174,11 +178,12 @@ class CLI:
                     [f"{key}:  {value}".ljust(max_key_length + 5) for key, value in chunk]
                 )
                 print(f"       {formatted_chunk}")
+            print("Model path: ", model['path'])
 
     def display_charts(self):
         """Display charts for a selected model and dataset."""
 
-        model_name, model = self.select_model()
+        model_name, model, path = self.select_model()
         # List out all the runs involving the selected model and with what dataset
         print("\nAvailable Runs:")
         count = 1
@@ -247,7 +252,25 @@ class CLI:
             if run['dataset'] == dataset:
                 res.append(run)
         
-        self.plotter.plot_models(res, dataset)
+        print("\nOptions:")
+        print("1. Comparative Line Plot")
+        print("2. Table Showing AUC Values")
+        print("3. Back to Main Menu")
+
+        try:
+            plot_choice = int(input("\nEnter your choice: "))
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            return
+
+        if plot_choice == 1:
+            self.plotter.plot_models(res, dataset)
+        elif plot_choice == 2:
+            self.plotter.plot_auc_table(res, dataset)
+        elif plot_choice == 3:
+            return
+        else:
+            print("Invalid choice. Please try again.")
         
         if not res:
             print("No runs found for the selected dataset.")

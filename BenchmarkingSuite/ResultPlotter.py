@@ -4,13 +4,6 @@ from sklearn.metrics import ConfusionMatrixDisplay
 
 
 class ResultPlotter:
-    def __init__(self):
-        """
-        Initialize the Plotter with the time_acc dictionary.
-
-        Args:
-            time_acc (dict): Dictionary containing accuracy, confidence intervals, and confusion matrices.
-        """
 
     def plot_accuracy_quality_map(self, results, dataset):
         """
@@ -34,15 +27,35 @@ class ResultPlotter:
         plt.grid()
         plt.show()
 
-    def func(self, results, dataset):
+    def func(self, results, model_name, dataset):
         """
         Plot accuracy, F1 score, precision, and recall vs. time with confidence intervals in subplots.
         """
 
+        # Validate that all required keys are present in the results
+        required_keys = ["acc", "f1", "precision", "recall", "acc_upper_bound", "f1_upper_bound", 
+                 "precision_upper_bound", "recall_upper_bound", "acc_lower_bound", 
+                 "f1_lower_bound", "precision_lower_bound", "recall_lower_bound"]
+        for t, metrics in results.items():
+            if t == 'auc':  # Skip AUC key
+                continue
+            for key in required_keys:
+                if key not in metrics:
+                    raise KeyError(f"Missing required key '{key}' in results for time {t}, please check results.json.")
+
+
+        # Validate data types of the results
+        for t, metrics in results.items():
+            if t == 'auc':  # Skip AUC key
+                continue
+            for key in required_keys:
+                if not isinstance(metrics[key], (int, float)):
+                    raise TypeError(f"Key '{key}' in results for time {t} should be a number, got {type(metrics[key])}.")
+
         metrics = ["acc", "f1", "precision", "recall"]
         metric_labels = ["Accuracy", "F1 Score", "Precision", "Recall"]
 
-        times = sorted([float(t) for t in results.keys()])
+        times = sorted([float(t) for t in results.keys() if t != 'auc'])
         norm_times = [t / max(times) * 100 for t in times] 
 
         fig, axes = plt.subplots(1, len(metrics),figsize=(15, 5))
@@ -82,7 +95,7 @@ class ResultPlotter:
         for i, run in enumerate(results_set):
             for j, metric in enumerate(metrics):
                 results = run['results']
-                times = sorted([float(t) for t in results.keys()])
+                times = sorted([float(t) for t in results.keys() if t != 'auc'])
                 norm_times = [t / max(times) * 100 for t in times]
 
                 values = [results[str(t)][metric] for t in times]
@@ -112,20 +125,41 @@ class ResultPlotter:
         plt.tight_layout(rect=[0, 0.15, 1, 0.95])  # Adjust layout to leave space for the text
         plt.show()
 
-    def plot_roc_auc(self, results, dataset):
+    def plot_auc_table(self, results, dataset):
         """
-        Plot ROC AUC vs. time with confidence intervals.
+        Plot AUC values in a table format and display max time for each model.
 
         Args:
-            results (dict): Dictionary containing results, including ROC AUC values.
+            results (list): List of dictionaries containing results, including AUC values and max times.
             dataset (str): Name of the dataset.
         """
-        times = sorted([float(t) for t in results.keys()])
-        roc_auc_values = [results[str(t)]["roc_auc"] for t in times]
-        upper_bounds = [results[str(t)]["roc_auc_upper_bound"] for t in times]
-        lower_bounds = [results[str(t)]["roc_auc_lower_bound"] for t in times]
+        # Extract AUC values, max times, and peak accuracy, and sort models by AUC score
+        auc_scores = [
+            (
+                model['model'],
+                model['results']['auc'],
+                max([float(t) for t in model['results'].keys() if t != 'auc']),
+                max([model['results'][str(t)]['acc'] for t in model['results'].keys() if t != 'auc'])
+            )
+            for model in results
+        ]
+        sorted_models = sorted(auc_scores, key=lambda x: x[1], reverse=True)
 
-        norm_times = [t / max(times) * 100 for t in times]
+        # Create a table with sorted AUC values, max times, and peak accuracy
+        fig, ax = plt.subplots(figsize=(12, len(sorted_models) * 0.6))
+        ax.axis("tight")
+        ax.axis("off")
+        table_data = [["Model", "AUC Score", "Max Time (s)", "Peak Accuracy", "AUC/Max Time"]] + [
+            [model, f"{auc:.4f}", f"{max_time:.5f}", f"{peak_acc:.4f}", f"{auc / max_time:.4f}"]
+            for model, auc, max_time, peak_acc in sorted_models
+        ]
+        table = ax.table(cellText=table_data, colLabels=None, cellLoc="center", loc="center")
+        table.auto_set_font_size(False)
+        table.set_fontsize(12)
+        table.auto_set_column_width(col=list(range(len(table_data[0]))))
+
+        plt.title(f"AUC Scores for Models on {dataset}")
+        plt.show()
 
     def plot_confusion_matrices(self, results, dataset):
         """
@@ -136,9 +170,19 @@ class ResultPlotter:
             dataset (str): Name of the dataset.
         """
 
+        # Validate confusion matrices
+        for t, metrics in results.items():
+            if t == 'auc':  # Skip AUC key
+                continue
+            if "confusion_matrices" not in metrics:
+                raise KeyError(f"Missing 'confusion_matrices' key in results for time {t}, please check results.json.")
+            if not isinstance(metrics["confusion_matrices"], (list, np.ndarray)):
+                raise TypeError(f"'confusion_matrices' in results for time {t} should be a list or numpy array, got {type(metrics['confusion_matrices'])}.")
+            if len(metrics["confusion_matrices"]) == 0:
+                raise ValueError(f"'confusion_matrices' in results for time {t} is empty, please check results.json.")
 
         # Extract confusion matrices
-        times = sorted([float(t) for t in results.keys()])
+        times = sorted([float(t) for t in results.keys() if t != 'auc'])
         selected_times = [times[len(times) // 4], times[len(times) // 2], times[3 * len(times) // 4], times[-1]]
         time_breaks = [25, 50, 75, 100]
 
